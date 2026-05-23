@@ -25,6 +25,13 @@ class WeatherClient:
         self._subscribers: Set[asyncio.Queue] = set()
         self._lock = asyncio.Lock()
         self._last_forecast_fetch: Optional[datetime] = None
+        self._last_obs_at: Optional[datetime] = None
+
+    @property
+    def seconds_since_last_obs(self) -> Optional[float]:
+        if self._last_obs_at is None:
+            return None
+        return (datetime.now(timezone.utc) - self._last_obs_at).total_seconds()
 
     def subscribe(self) -> asyncio.Queue:
         q: asyncio.Queue = asyncio.Queue(maxsize=50)
@@ -63,6 +70,7 @@ class WeatherClient:
                             data = msg.get("data", {})
                             if msg_type == "obs_st":
                                 self.latest_obs = data
+                                self._last_obs_at = datetime.now(timezone.utc)
                             elif msg_type == "rapid_wind":
                                 self.latest_wind = data
                             await self._fan_out(msg)

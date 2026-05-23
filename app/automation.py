@@ -14,6 +14,7 @@ MPH_PER_MS = 2.23694
 EVAL_INTERVAL_S = 10
 RAIN_FORECAST_POP_THRESHOLD = 0.3
 RAIN_FORECAST_WINDOW_S = 7200  # 2 hours
+WEATHER_TIMEOUT_S = 120  # retract after 2 minutes with no obs_st
 
 
 class AutomationEngine:
@@ -69,9 +70,26 @@ class AutomationEngine:
             return
 
         obs = weather_client.latest_obs
-        if not obs:
+        staleness = weather_client.seconds_since_last_obs
+
+        if not obs or staleness is None:
             self._active_rule = "waiting for weather data"
             log_store.add_automation("no_weather_data", "Waiting for weather data", False)
+            return
+
+        if staleness > WEATHER_TIMEOUT_S:
+            self._active_rule = f"weather data timeout ({staleness:.0f}s) → retracting"
+            self._sunny_conditions_met_since = None
+            action_taken = None
+            if awning_client.current_state != "undeployed":
+                logger.warning("Weather data stale for %.0fs, undeploying awning", staleness)
+                await awning_client.undeploy()
+                action_taken = "undeploy"
+                self._deployed_by_sunny = False
+                self._deploy_started_at = None
+            log_store.add_automation(
+                "weather_timeout", self._active_rule, triggered=True, action_taken=action_taken
+            )
             return
 
         rain_now = (obs.get("precip_type", 0) != 0) or (obs.get("rain_prev_min_mm", 0.0) > 0)

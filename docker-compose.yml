@@ -10,3 +10,16 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
+
+  awning-watchdog:
+    container_name: awning-watchdog
+    build: .
+    entrypoint: ["python", "watchdog.py"]
+    env_file: .env
+    environment:
+      - APP_URL=http://awning-protector:8767
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - awning-protector
+    restart: unless-stopped
