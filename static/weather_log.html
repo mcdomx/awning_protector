@@ -47,6 +47,7 @@
       <thead>
         <tr>
           <th data-col="timestamp" class="sortable">Time <span class="sort-icon">↓</span></th>
+          <th data-col="air_temp_c" class="sortable">Temp <span id="temp-header-unit">°C</span> <span class="sort-icon">↕</span></th>
           <th data-col="wind_avg_mph" class="sortable">Wind Avg <span class="sort-icon">↕</span></th>
           <th data-col="wind_gust_mph" class="sortable">Gust <span class="sort-icon">↕</span></th>
           <th data-col="wind_dir_deg" class="sortable">Dir° <span class="sort-icon">↕</span></th>
@@ -58,7 +59,7 @@
         </tr>
       </thead>
       <tbody id="log-body">
-        <tr><td colspan="9" class="muted" style="text-align:center;padding:2rem">Loading…</td></tr>
+        <tr><td colspan="10" class="muted" style="text-align:center;padding:2rem">Loading…</td></tr>
       </tbody>
     </table>
   </div>
@@ -78,9 +79,29 @@
 
     const PRECIP_LABELS = { 0: '—', 1: 'Rain', 2: 'Hail' };
 
+    let configTempUnit = 'F';
     let allEntries = [];
     let sortCol = 'timestamp';
     let sortDir = 'desc';
+
+    function toDisplayTemp(c) {
+      if (c == null) return null;
+      return configTempUnit === 'C' ? c : c * 9 / 5 + 32;
+    }
+
+    async function loadConfig() {
+      try {
+        const resp = await fetch('/config');
+        if (resp.ok) {
+          const cfg = await resp.json();
+          configTempUnit = cfg.temp_unit || 'F';
+          const u = document.getElementById('temp-header-unit');
+          if (u) u.textContent = configTempUnit === 'C' ? '°C' : '°F';
+        }
+      } catch (e) {
+        console.error('Failed to load config', e);
+      }
+    }
 
     function fmtTime(iso) {
       const d = new Date(iso);
@@ -128,7 +149,7 @@
 
       const tbody = document.getElementById('log-body');
       if (!rows.length) {
-        tbody.innerHTML = '<tr><td colspan="9" class="muted" style="text-align:center;padding:2rem">No entries match the current filters.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="muted" style="text-align:center;padding:2rem">No entries match the current filters.</td></tr>';
         return;
       }
 
@@ -140,6 +161,7 @@
 
         return `<tr${e.triggered_automation ? ' class="row-triggered"' : ''}>
           <td class="mono">${fmtTime(e.timestamp)}</td>
+          <td>${(() => { const t = toDisplayTemp(e.air_temp_c); return t != null ? t.toFixed(1) + (configTempUnit === 'C' ? '°C' : '°F') : '—'; })()}</td>
           ${triggerCell(e.wind_avg_mph.toFixed(1) + ' mph', 'wind_avg_mph', e)}
           <td>${e.wind_gust_mph.toFixed(1)} mph</td>
           <td>${e.wind_dir_deg}°</td>
@@ -192,7 +214,7 @@
     document.getElementById('auto-refresh').addEventListener('change', scheduleAutoRefresh);
     scheduleAutoRefresh();
 
-    loadData();
+    (async () => { await loadConfig(); await loadData(); })();
   </script>
 </body>
 </html>

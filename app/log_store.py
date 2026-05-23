@@ -20,6 +20,7 @@ class AutomationLogEntry(BaseModel):
 class WeatherLogEntry(BaseModel):
     id: int
     timestamp: str
+    air_temp_c: Optional[float]
     wind_avg_mph: float
     wind_gust_mph: float
     wind_dir_deg: float
@@ -67,9 +68,11 @@ class LogStore:
         trigger_reason: Optional[str] = None,
     ) -> None:
         self._weather_id += 1
+        air_temp_c = obs.get("air_temp_c")
         self._weather.append(WeatherLogEntry(
             id=self._weather_id,
             timestamp=datetime.now(timezone.utc).isoformat(),
+            air_temp_c=round(air_temp_c, 1) if air_temp_c is not None else None,
             wind_avg_mph=round(wind_avg_mph, 2),
             wind_gust_mph=round((obs.get("wind_gust_m_s") or 0.0) * MPH_PER_MS, 2),
             wind_dir_deg=obs.get("wind_direction_deg") or 0,

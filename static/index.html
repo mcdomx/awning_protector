@@ -60,18 +60,35 @@
       </div>
     </section>
 
-    <!-- Rain / conditions panel -->
+    <!-- Current conditions panel -->
     <section class="card" id="rain-card">
-      <h2>Rain &amp; Conditions</h2>
-      <div class="rain-current">
-        <span class="stat-label">Now</span>
-        <span id="precip-badge" class="badge badge-ok">No rain</span>
-        <span class="stat-label" style="margin-left:1.2rem">UV</span>
-        <span class="stat-value" id="uv-index">--</span>
-        <span class="stat-label" style="margin-left:1.2rem">Lux</span>
-        <span class="stat-value" id="lux">--</span>
+      <h2>Conditions</h2>
+      <div class="conditions-grid">
+        <div class="stat">
+          <span class="stat-label">Rain</span>
+          <span id="precip-badge" class="badge badge-ok">No rain</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value" id="air-temp">--</span>
+          <span class="stat-unit" id="temp-unit-label">°F</span>
+          <span class="stat-label">Temp</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value" id="uv-index">--</span>
+          <span class="stat-label">UV Index</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value" id="lux">--</span>
+          <span class="stat-label">Lux</span>
+        </div>
       </div>
-      <div class="forecast-bars" id="forecast-bars">
+    </section>
+
+    <!-- Forecast panel -->
+    <section class="card" id="forecast-card">
+      <h2>Forecast</h2>
+      <p class="muted forecast-updated" id="forecast-updated"></p>
+      <div class="forecast-table" id="forecast-bars">
         <p class="muted">Forecast loading…</p>
       </div>
     </section>
@@ -102,6 +119,13 @@
         <div class="field-row">
           <label for="cfg-override-min">Manual override (min)</label>
           <input type="number" id="cfg-override-min" min="0" max="240" step="5" />
+        </div>
+        <div class="field-row">
+          <label>Temperature unit</label>
+          <div class="radio-group">
+            <label><input type="radio" name="temp-unit" id="cfg-temp-unit-f" value="F" /> °F</label>
+            <label><input type="radio" name="temp-unit" id="cfg-temp-unit-c" value="C" /> °C</label>
+          </div>
         </div>
         <button class="btn btn-save" onclick="saveCard('general')">Save</button>
         <span id="save-status-general" class="muted"></span>
@@ -161,6 +185,14 @@
         <div class="field-row">
           <label for="cfg-deploy-dur">Deploy duration (s)</label>
           <input type="number" id="cfg-deploy-dur" min="1" max="60" step="1" />
+        </div>
+        <div class="field-row">
+          <label for="cfg-min-temp">Min temperature to deploy (<span id="temp-unit-setting-label">°F</span>)</label>
+          <input type="number" id="cfg-min-temp" min="0" max="120" step="1" />
+        </div>
+        <div class="field-row">
+          <label for="cfg-deploy-dwell">Conditions dwell before deploy (s)</label>
+          <input type="number" id="cfg-deploy-dwell" min="0" max="600" step="10" />
         </div>
         <button class="btn btn-save" onclick="saveCard('sunny')">Save</button>
         <span id="save-status-sunny" class="muted"></span>

@@ -24,7 +24,9 @@ def test_load_defaults_when_no_file():
     cfg = load_config()
     assert cfg.automation_enabled is True
     assert cfg.max_wind_mph == 15.0
-    assert cfg.deploy_duration_s == 3
+    assert cfg.min_temp_c == 23.9
+    assert cfg.temp_unit == "F"
+    assert cfg.sunny_deploy_dwell_s == 60
 
 
 def test_save_and_reload():

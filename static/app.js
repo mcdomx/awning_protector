@@ -6,9 +6,12 @@ const state = {
   windGustMph: 0,
   precipType: 0,
   rainMm: 0,
+  airTempC: null,
   uvIndex: 0,
   lux: 0,
   forecast: [],
+  forecastError: null,
+  forecastUpdatedAt: null,
 };
 
 const MPH = 2.23694;
@@ -19,6 +22,41 @@ function el(id) { return document.getElementById(id); }
 function setNum(id, val, decimals = 1) {
   const node = el(id);
   if (node) node.textContent = (val == null || isNaN(val)) ? '--' : Number(val).toFixed(decimals);
+}
+
+/* --- Temperature helpers --- */
+function toDisplayTemp(c) {
+  if (c == null || isNaN(c)) return null;
+  return (currentConfig.temp_unit || 'F') === 'C' ? c : c * 9 / 5 + 32;
+}
+
+function tempUnitLabel() {
+  return (currentConfig.temp_unit || 'F') === 'C' ? '°C' : '°F';
+}
+
+function updateTempUnitUI() {
+  const unitLabel = el('temp-unit-label');
+  if (unitLabel) unitLabel.textContent = tempUnitLabel();
+
+  const settingLabel = el('temp-unit-setting-label');
+  if (settingLabel) settingLabel.textContent = tempUnitLabel();
+
+  const minTempInput = el('cfg-min-temp');
+  if (minTempInput && currentConfig.min_temp_c != null) {
+    const isC = (currentConfig.temp_unit || 'F') === 'C';
+    const displayVal = toDisplayTemp(currentConfig.min_temp_c);
+    minTempInput.value = isC ? Number(displayVal).toFixed(1) : Math.round(displayVal);
+    minTempInput.min = isC ? 0 : 32;
+    minTempInput.max = isC ? 50 : 120;
+    minTempInput.step = isC ? 0.5 : 1;
+  }
+
+  if (state.airTempC != null) {
+    const isC = (currentConfig.temp_unit || 'F') === 'C';
+    setNum('air-temp', toDisplayTemp(state.airTempC), isC ? 1 : 0);
+  }
+
+  renderForecast(state.forecast, state.forecastError, state.forecastUpdatedAt);
 }
 
 /* --- Wind compass --- */
@@ -37,35 +75,54 @@ function updatePrecipBadge(type, mm) {
   badge.className = 'badge ' + (raining ? 'badge-alert' : 'badge-ok');
 }
 
-/* --- Forecast grid --- */
-function renderForecast(forecast, forecastError) {
+/* --- Forecast table --- */
+function renderForecast(forecast, forecastError, forecastUpdatedAt) {
   const container = el('forecast-bars');
+  const updatedEl = el('forecast-updated');
   if (!container) return;
+
+  if (updatedEl) {
+    updatedEl.textContent = forecastUpdatedAt
+      ? `Updated ${new Date(forecastUpdatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+      : '';
+  }
+
   if (!forecast || forecast.length === 0) {
-    if (forecastError) {
-      container.innerHTML = `<p class="muted">Forecast error: ${forecastError}</p>`;
-    } else {
-      container.innerHTML = '<p class="muted">No forecast data (set OPENWEATHER_API_KEY)</p>';
-    }
+    container.innerHTML = forecastError
+      ? `<p class="muted">Forecast error: ${forecastError}</p>`
+      : '<p class="muted">No forecast data (set OPENWEATHER_API_KEY)</p>';
     return;
   }
-  container.innerHTML = forecast.map(entry => {
-    const pct = Math.round((entry.pop || 0) * 100);
-    const barH = Math.max(3, pct * 0.6);
-    const dt = new Date(entry.dt * 1000);
-    const time = dt.getHours().toString().padStart(2, '0') + ':00';
-    const wind = entry.wind_mph != null ? entry.wind_mph.toFixed(1) : '--';
-    const temp = entry.temp_f != null ? `${entry.temp_f}°` : '--';
-    return `<div class="forecast-col">
-      <div class="forecast-bar-area">
-        <div class="forecast-bar" style="height:${barH}px" title="${pct}% rain @ ${time}"></div>
-      </div>
-      <span class="fc-val fc-precip">${pct}%</span>
-      <span class="fc-val fc-wind">${wind}mph</span>
-      <span class="fc-val fc-temp">${temp}</span>
-      <span class="fc-val fc-time">${time}</span>
-    </div>`;
-  }).join('');
+
+  const entries = forecast.slice(0, 8);
+  const times = entries.map(e => {
+    const d = new Date(e.dt * 1000);
+    const h = d.getHours();
+    return (h % 12 || 12) + (h >= 12 ? 'pm' : 'am');
+  });
+  const pcts  = entries.map(e => Math.round((e.pop || 0) * 100));
+  const winds = entries.map(e => e.wind_mph != null ? e.wind_mph.toFixed(1) : '--');
+  const temps = entries.map(e => {
+    const displayTemp = toDisplayTemp(e.temp_c);
+    return displayTemp != null ? `${Math.round(displayTemp)}°` : '--';
+  });
+  const barHeights = pcts.map(p => Math.max(3, p * 0.6));
+
+  function cells(vals, cls) {
+    return vals.map(v => `<div class="fc-cell ${cls}">${v}</div>`).join('');
+  }
+  function label(cls, text) {
+    return `<div class="fc-label ${cls}">${text}</div>`;
+  }
+
+  container.innerHTML =
+    label('fc-time', '') + cells(times, 'fc-time') +
+    label('', '') + entries.map((_, i) =>
+      `<div class="fc-bar-cell"><div class="forecast-bar" style="height:${barHeights[i]}px" title="${pcts[i]}%"></div></div>`
+    ).join('') +
+    label('fc-precip', 'Rain') + cells(pcts.map(p => p + '%'), 'fc-precip') +
+    label('fc-wind', 'Wind') + cells(winds.map(w => w + 'mph'), 'fc-wind') +
+    label('fc-temp', 'Temp') + cells(temps, 'fc-temp');
 }
 
 /* --- Awning status --- */
@@ -108,6 +165,12 @@ async function loadConfig() {
   currentConfig = await resp.json();
   el('cfg-enabled').checked = currentConfig.automation_enabled;
   el('cfg-override-min').value = currentConfig.manual_override_min;
+
+  const radioF = el('cfg-temp-unit-f');
+  const radioC = el('cfg-temp-unit-c');
+  if (radioF) radioF.checked = (currentConfig.temp_unit || 'F') !== 'C';
+  if (radioC) radioC.checked = (currentConfig.temp_unit || 'F') === 'C';
+
   el('cfg-rain-enabled').checked = currentConfig.rain_triggers_retract;
   el('cfg-wind-enabled').checked = currentConfig.wind_protection_enabled;
   el('cfg-max-wind').value = currentConfig.max_wind_mph;
@@ -115,13 +178,17 @@ async function loadConfig() {
   el('cfg-sunny-lux').value = currentConfig.sunny_lux_threshold;
   el('cfg-sunny-wind').value = currentConfig.sunny_wind_max_mph;
   el('cfg-deploy-dur').value = currentConfig.deploy_duration_s;
+  el('cfg-deploy-dwell').value = currentConfig.sunny_deploy_dwell_s;
+  // min_temp_c display set by updateTempUnitUI below
   updateCardDisabledState();
+  updateTempUnitUI();
 }
 
 async function saveCard(cardName) {
   if (cardName === 'general') {
     currentConfig.automation_enabled = el('cfg-enabled').checked;
     currentConfig.manual_override_min = parseInt(el('cfg-override-min').value, 10);
+    currentConfig.temp_unit = el('cfg-temp-unit-c').checked ? 'C' : 'F';
   } else if (cardName === 'rain') {
     currentConfig.rain_triggers_retract = el('cfg-rain-enabled').checked;
   } else if (cardName === 'wind') {
@@ -132,6 +199,12 @@ async function saveCard(cardName) {
     currentConfig.sunny_lux_threshold = parseInt(el('cfg-sunny-lux').value, 10);
     currentConfig.sunny_wind_max_mph = parseFloat(el('cfg-sunny-wind').value);
     currentConfig.deploy_duration_s = parseInt(el('cfg-deploy-dur').value, 10);
+    // convert display unit input back to Celsius for storage
+    const inputVal = parseFloat(el('cfg-min-temp').value);
+    currentConfig.min_temp_c = (currentConfig.temp_unit || 'F') === 'C'
+      ? inputVal
+      : (inputVal - 32) * 5 / 9;
+    currentConfig.sunny_deploy_dwell_s = parseInt(el('cfg-deploy-dwell').value, 10);
   }
   const resp = await fetch('/config', {
     method: 'PUT',
@@ -142,6 +215,7 @@ async function saveCard(cardName) {
   if (resp.ok) {
     currentConfig = await resp.json();
     updateCardDisabledState();
+    updateTempUnitUI();
     if (status) { status.textContent = 'Saved'; setTimeout(() => { status.textContent = ''; }, 2000); }
   } else {
     if (status) status.textContent = 'Error saving';
@@ -171,7 +245,9 @@ async function loadInitialWeather() {
   handleWind(wind);
   if (data.forecast) {
     state.forecast = data.forecast;
-    renderForecast(state.forecast, data.forecast_error);
+    state.forecastError = data.forecast_error;
+    state.forecastUpdatedAt = data.forecast_updated_at;
+    renderForecast(state.forecast, state.forecastError, state.forecastUpdatedAt);
   }
 }
 
@@ -182,11 +258,14 @@ function handleObs(data) {
   state.windGustMph = (data.wind_gust_m_s || 0) * MPH;
   state.precipType = data.precip_type || 0;
   state.rainMm = data.rain_prev_min_mm || 0;
+  state.airTempC = data.air_temp_c ?? null;
   state.uvIndex = data.uv_index || 0;
   state.lux = data.illuminance_lux || 0;
 
   setNum('wind-avg', state.windAvgMph);
   setNum('wind-gust', state.windGustMph);
+  const isC = (currentConfig.temp_unit || 'F') === 'C';
+  setNum('air-temp', toDisplayTemp(state.airTempC), isC ? 1 : 0);
   setNum('uv-index', state.uvIndex);
   setNum('lux', state.lux, 0);
   updatePrecipBadge(state.precipType, state.rainMm);

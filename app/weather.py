@@ -80,7 +80,7 @@ class WeatherClient:
             return
         url = (
             "https://api.openweathermap.org/data/2.5/forecast"
-            f"?lat={LATITUDE}&lon={LONGITUDE}&appid={OPENWEATHER_API_KEY}&cnt=8&units=imperial"
+            f"?lat={LATITUDE}&lon={LONGITUDE}&appid={OPENWEATHER_API_KEY}&cnt=8&units=metric"
         )
         try:
             async with httpx.AsyncClient(timeout=10) as client:
@@ -92,8 +92,8 @@ class WeatherClient:
                     "dt": entry["dt"],
                     "pop": entry.get("pop", 0.0),
                     "description": entry["weather"][0]["description"] if entry.get("weather") else "",
-                    "wind_mph": round(entry.get("wind", {}).get("speed", 0.0), 1),
-                    "temp_f": round(entry.get("main", {}).get("temp", 0.0)),
+                    "wind_mph": round(entry.get("wind", {}).get("speed", 0.0) * 2.23694, 1),
+                    "temp_c": round(entry.get("main", {}).get("temp", 0.0), 1),
                 }
                 for entry in data.get("list", [])
             ]
@@ -109,6 +109,7 @@ class WeatherClient:
             "wind": self.latest_wind,
             "forecast": self.forecast,
             "forecast_error": self.forecast_error,
+            "forecast_updated_at": self._last_forecast_fetch.isoformat() if self._last_forecast_fetch else None,
         }
 
     async def start(self) -> None:

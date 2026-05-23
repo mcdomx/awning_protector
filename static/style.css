@@ -72,18 +72,33 @@ main {
 .stat-unit { font-size: 0.75rem; color: var(--muted); }
 .stat-label { font-size: 0.75rem; color: var(--muted); margin-top: 0.15rem; }
 
-/* Rain */
-.rain-current {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  margin-bottom: 1rem;
+/* Conditions */
+.conditions-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
 }
 
-.forecast-bars { display: flex; gap: 4px; }
-.forecast-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.forecast-bar-area { height: 60px; display: flex; align-items: flex-end; width: 100%; }
+.forecast-updated { margin-bottom: 0.75rem; }
+.forecast-table {
+  display: grid;
+  grid-template-columns: 28px repeat(8, 1fr);
+  column-gap: 4px;
+  row-gap: 14px;
+}
+.fc-label {
+  font-size: 9px;
+  font-weight: 600;
+  text-align: right;
+  padding-right: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+.fc-cell { text-align: center; font-size: 10px; line-height: 1.4; }
+.fc-bar-cell { display: flex; align-items: flex-end; height: 60px; }
 .forecast-bar {
   width: 100%;
   background: var(--blue);
@@ -92,11 +107,10 @@ main {
   min-height: 3px;
   transition: height 0.3s;
 }
-.fc-val { font-size: 10px; line-height: 1.4; text-align: center; white-space: nowrap; }
 .fc-precip { color: var(--blue); }
 .fc-wind   { color: var(--accent); }
 .fc-temp   { color: var(--yellow); }
-.fc-time   { color: var(--muted); }
+.fc-time   { color: var(--muted); font-size: 9px; }
 
 /* Awning */
 .awning-status { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
@@ -106,6 +120,8 @@ main {
 .field-row { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
 .field-row label { font-size: 0.875rem; color: var(--muted); }
 .field-row input { width: 90px; }
+.radio-group { display: flex; gap: 1rem; }
+.radio-group label { font-size: 0.875rem; color: var(--text); display: flex; align-items: center; gap: 0.25rem; }
 
 .automation-card-header {
   display: flex;
