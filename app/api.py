@@ -4,7 +4,7 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import timezone
 from pathlib import Path
-from typing import Any, AsyncIterator, Dict
+from typing import Any, AsyncIterator, Dict, List
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from .automation import automation_engine
 from .awning import awning_client
 from .config import AutomationConfig, get_config, save_config
+from .log_store import AutomationLogEntry, WeatherLogEntry, log_store
 from .weather import weather_client
 
 logger = logging.getLogger(__name__)
@@ -120,3 +121,23 @@ async def config_get() -> AutomationConfig:
 async def config_put(cfg: AutomationConfig) -> AutomationConfig:
     save_config(cfg)
     return cfg
+
+
+@app.get("/logs/automation-page", response_class=HTMLResponse)
+async def automation_log_page() -> HTMLResponse:
+    return HTMLResponse((STATIC_DIR / "automation_log.html").read_text())
+
+
+@app.get("/logs/weather-page", response_class=HTMLResponse)
+async def weather_log_page() -> HTMLResponse:
+    return HTMLResponse((STATIC_DIR / "weather_log.html").read_text())
+
+
+@app.get("/logs/automation", response_model=List[AutomationLogEntry])
+async def logs_automation() -> List[AutomationLogEntry]:
+    return log_store.get_automation()
+
+
+@app.get("/logs/weather", response_model=List[WeatherLogEntry])
+async def logs_weather() -> List[WeatherLogEntry]:
+    return log_store.get_weather()

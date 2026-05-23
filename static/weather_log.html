@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Weather Log — Awning Protector</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/logs.css" />
+</head>
+<body>
+  <header>
+    <h1>Awning Protector</h1>
+    <nav class="nav-links">
+      <a href="/">Dashboard</a>
+      <a href="/logs/automation-page">Automation Log</a>
+      <a href="/logs/weather-page" class="active">Weather Log</a>
+    </nav>
+  </header>
+
+  <div class="log-toolbar">
+    <div class="filter-group">
+      <label for="filter-triggered">Triggered</label>
+      <select id="filter-triggered">
+        <option value="">All entries</option>
+        <option value="yes">Triggered action only</option>
+        <option value="no">No trigger</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="filter-limit">Show</label>
+      <select id="filter-limit">
+        <option value="100">Last 100</option>
+        <option value="500">Last 500</option>
+        <option value="0">All</option>
+      </select>
+    </div>
+    <button class="btn btn-save" onclick="loadData()">Refresh</button>
+    <label class="auto-refresh-label">
+      <input type="checkbox" id="auto-refresh" checked />
+      Auto-refresh (10s)
+    </label>
+    <span class="muted" id="entry-count"></span>
+  </div>
+
+  <div class="log-container">
+    <table class="log-table" id="log-table">
+      <thead>
+        <tr>
+          <th data-col="timestamp" class="sortable">Time <span class="sort-icon">↓</span></th>
+          <th data-col="wind_avg_mph" class="sortable">Wind Avg <span class="sort-icon">↕</span></th>
+          <th data-col="wind_gust_mph" class="sortable">Gust <span class="sort-icon">↕</span></th>
+          <th data-col="wind_dir_deg" class="sortable">Dir° <span class="sort-icon">↕</span></th>
+          <th data-col="precip_type" class="sortable">Precip <span class="sort-icon">↕</span></th>
+          <th data-col="rain_mm" class="sortable">Rain mm/min <span class="sort-icon">↕</span></th>
+          <th data-col="lux" class="sortable">Lux <span class="sort-icon">↕</span></th>
+          <th data-col="uv_index" class="sortable">UV <span class="sort-icon">↕</span></th>
+          <th data-col="triggered_automation" class="sortable">Triggered <span class="sort-icon">↕</span></th>
+        </tr>
+      </thead>
+      <tbody id="log-body">
+        <tr><td colspan="9" class="muted" style="text-align:center;padding:2rem">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    const AUTOMATION_LABELS = {
+      rain_protection: 'Rain Protection',
+      wind_protection: 'Wind Protection',
+      sunny_deploy: 'Sunny Deploy',
+    };
+
+    const ACTION_LABELS = {
+      deploy: 'Deploy',
+      undeploy: 'Retract',
+      stop: 'Stop',
+    };
+
+    const PRECIP_LABELS = { 0: '—', 1: 'Rain', 2: 'Hail' };
+
+    let allEntries = [];
+    let sortCol = 'timestamp';
+    let sortDir = 'desc';
+
+    function fmtTime(iso) {
+      const d = new Date(iso);
+      return d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
+    }
+
+    // Wrap a cell value with a trigger highlight + tooltip if this field triggered the action
+    function triggerCell(value, fieldName, entry) {
+      const isTrigger = entry.trigger_field === fieldName && entry.triggered_automation;
+      if (!isTrigger) return `<td>${value}</td>`;
+      const auto = AUTOMATION_LABELS[entry.triggered_automation] || entry.triggered_automation;
+      const action = ACTION_LABELS[entry.triggered_action] || entry.triggered_action || '';
+      const reason = entry.trigger_reason || '';
+      const tooltip = `${auto}${action ? ' → ' + action : ''}: ${reason}`;
+      return `<td><span class="trigger-highlight" data-tooltip="${escapeAttr(tooltip)}">${value}</span></td>`;
+    }
+
+    function escapeAttr(s) {
+      return s.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function filteredEntries() {
+      const triggered = document.getElementById('filter-triggered').value;
+      const limit = parseInt(document.getElementById('filter-limit').value, 10);
+
+      let rows = allEntries;
+      if (triggered === 'yes') rows = rows.filter(e => !!e.triggered_automation);
+      if (triggered === 'no') rows = rows.filter(e => !e.triggered_automation);
+
+      rows = [...rows].sort((a, b) => {
+        let va = a[sortCol], vb = b[sortCol];
+        if (va == null) va = '';
+        if (vb == null) vb = '';
+        const cmp = va < vb ? -1 : va > vb ? 1 : 0;
+        return sortDir === 'asc' ? cmp : -cmp;
+      });
+
+      if (limit > 0) rows = rows.slice(0, limit);
+      return rows;
+    }
+
+    function renderTable() {
+      const rows = filteredEntries();
+      document.getElementById('entry-count').textContent = `${rows.length} entries`;
+
+      const tbody = document.getElementById('log-body');
+      if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="9" class="muted" style="text-align:center;padding:2rem">No entries match the current filters.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = rows.map(e => {
+        const precipLabel = PRECIP_LABELS[e.precip_type] ?? String(e.precip_type);
+        const triggeredBadge = e.triggered_automation
+          ? `<span class="badge badge-warn">${AUTOMATION_LABELS[e.triggered_automation] || e.triggered_automation}</span>`
+          : `<span class="muted">—</span>`;
+
+        return `<tr${e.triggered_automation ? ' class="row-triggered"' : ''}>
+          <td class="mono">${fmtTime(e.timestamp)}</td>
+          ${triggerCell(e.wind_avg_mph.toFixed(1) + ' mph', 'wind_avg_mph', e)}
+          <td>${e.wind_gust_mph.toFixed(1)} mph</td>
+          <td>${e.wind_dir_deg}°</td>
+          ${triggerCell(precipLabel, 'precip', e)}
+          ${triggerCell(e.rain_mm.toFixed(2), 'rain_mm', e)}
+          ${triggerCell(e.lux.toLocaleString(), 'lux', e)}
+          <td>${e.uv_index.toFixed(1)}</td>
+          <td>${triggeredBadge}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    async function loadData() {
+      try {
+        const resp = await fetch('/logs/weather');
+        if (!resp.ok) return;
+        allEntries = await resp.json();
+        renderTable();
+      } catch (e) {
+        console.error('Failed to load weather log', e);
+      }
+    }
+
+    document.getElementById('log-table').addEventListener('click', e => {
+      const th = e.target.closest('th[data-col]');
+      if (!th || !th.classList.contains('sortable')) return;
+      const col = th.dataset.col;
+      if (sortCol === col) {
+        sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        sortCol = col;
+        sortDir = col === 'timestamp' ? 'desc' : 'asc';
+      }
+      document.querySelectorAll('.sort-icon').forEach(el => el.textContent = '↕');
+      th.querySelector('.sort-icon').textContent = sortDir === 'asc' ? '↑' : '↓';
+      renderTable();
+    });
+
+    ['filter-triggered', 'filter-limit'].forEach(id => {
+      document.getElementById(id).addEventListener('change', renderTable);
+    });
+
+    let autoRefreshTimer;
+    function scheduleAutoRefresh() {
+      clearInterval(autoRefreshTimer);
+      if (document.getElementById('auto-refresh').checked) {
+        autoRefreshTimer = setInterval(loadData, 10000);
+      }
+    }
+    document.getElementById('auto-refresh').addEventListener('change', scheduleAutoRefresh);
+    scheduleAutoRefresh();
+
+    loadData();
+  </script>
+</body>
+</html>

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Automation Log — Awning Protector</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/logs.css" />
+</head>
+<body>
+  <header>
+    <h1>Awning Protector</h1>
+    <nav class="nav-links">
+      <a href="/">Dashboard</a>
+      <a href="/logs/automation-page" class="active">Automation Log</a>
+      <a href="/logs/weather-page">Weather Log</a>
+    </nav>
+  </header>
+
+  <div class="log-toolbar">
+    <div class="filter-group">
+      <label for="filter-automation">Automation</label>
+      <select id="filter-automation">
+        <option value="">All</option>
+        <option value="rain_protection">Rain Protection</option>
+        <option value="wind_protection">Wind Protection</option>
+        <option value="sunny_deploy">Sunny Deploy</option>
+        <option value="conditions_nominal">Conditions Nominal</option>
+        <option value="manual_override">Manual Override</option>
+        <option value="automation_disabled">Automation Disabled</option>
+        <option value="no_weather_data">No Weather Data</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="filter-result">Result</label>
+      <select id="filter-result">
+        <option value="">All</option>
+        <option value="action">Action taken</option>
+        <option value="matched">Rule matched (no action needed)</option>
+        <option value="none">No rule matched</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="filter-limit">Show</label>
+      <select id="filter-limit">
+        <option value="100">Last 100</option>
+        <option value="500">Last 500</option>
+        <option value="0">All</option>
+      </select>
+    </div>
+    <button class="btn btn-save" id="refresh-btn" onclick="loadData()">Refresh</button>
+    <label class="auto-refresh-label">
+      <input type="checkbox" id="auto-refresh" checked />
+      Auto-refresh (10s)
+    </label>
+    <span class="muted" id="entry-count"></span>
+  </div>
+
+  <div class="log-container">
+    <table class="log-table" id="log-table">
+      <thead>
+        <tr>
+          <th data-col="timestamp" class="sortable">Time <span class="sort-icon">↕</span></th>
+          <th data-col="automation_name" class="sortable">Automation <span class="sort-icon">↕</span></th>
+          <th data-col="rule_description">Description</th>
+          <th data-col="triggered" class="sortable">Rule Matched <span class="sort-icon">↕</span></th>
+          <th data-col="action_taken" class="sortable">Action <span class="sort-icon">↕</span></th>
+        </tr>
+      </thead>
+      <tbody id="log-body">
+        <tr><td colspan="5" class="muted" style="text-align:center;padding:2rem">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    const AUTOMATION_LABELS = {
+      rain_protection: 'Rain Protection',
+      wind_protection: 'Wind Protection',
+      sunny_deploy: 'Sunny Deploy',
+      conditions_nominal: 'Conditions Nominal',
+      manual_override: 'Manual Override',
+      automation_disabled: 'Automation Disabled',
+      no_weather_data: 'No Weather Data',
+    };
+
+    const ACTION_LABELS = {
+      deploy: 'Deploy',
+      undeploy: 'Retract',
+      stop: 'Stop',
+    };
+
+    let allEntries = [];
+    let sortCol = 'timestamp';
+    let sortDir = 'desc';
+
+    function fmtTime(iso) {
+      const d = new Date(iso);
+      return d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
+    }
+
+    function resultOf(entry) {
+      if (entry.action_taken) return 'action';
+      if (entry.triggered) return 'matched';
+      return 'none';
+    }
+
+    function filteredEntries() {
+      const auto = document.getElementById('filter-automation').value;
+      const result = document.getElementById('filter-result').value;
+      const limit = parseInt(document.getElementById('filter-limit').value, 10);
+
+      let rows = allEntries;
+      if (auto) rows = rows.filter(e => e.automation_name === auto);
+      if (result) rows = rows.filter(e => resultOf(e) === result);
+
+      // allEntries is already newest-first from server; apply sort
+      rows = [...rows].sort((a, b) => {
+        let va = a[sortCol], vb = b[sortCol];
+        if (va == null) va = '';
+        if (vb == null) vb = '';
+        if (typeof va === 'boolean') { va = va ? 1 : 0; vb = vb ? 1 : 0; }
+        const cmp = va < vb ? -1 : va > vb ? 1 : 0;
+        return sortDir === 'asc' ? cmp : -cmp;
+      });
+
+      if (limit > 0) rows = rows.slice(0, limit);
+      return rows;
+    }
+
+    function renderTable() {
+      const rows = filteredEntries();
+      document.getElementById('entry-count').textContent = `${rows.length} entries`;
+
+      const tbody = document.getElementById('log-body');
+      if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="muted" style="text-align:center;padding:2rem">No entries match the current filters.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = rows.map(e => {
+        const result = resultOf(e);
+        let resultBadge;
+        if (result === 'action') {
+          resultBadge = `<span class="badge badge-ok">Yes</span>`;
+        } else if (result === 'matched') {
+          resultBadge = `<span class="badge badge-warn">Matched</span>`;
+        } else {
+          resultBadge = `<span class="badge badge-offline">No</span>`;
+        }
+
+        const actionBadge = e.action_taken
+          ? `<span class="badge badge-ok">${ACTION_LABELS[e.action_taken] || e.action_taken}</span>`
+          : `<span class="muted">—</span>`;
+
+        return `<tr>
+          <td class="mono">${fmtTime(e.timestamp)}</td>
+          <td>${AUTOMATION_LABELS[e.automation_name] || e.automation_name}</td>
+          <td class="desc-cell">${e.rule_description}</td>
+          <td>${resultBadge}</td>
+          <td>${actionBadge}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    async function loadData() {
+      try {
+        const resp = await fetch('/logs/automation');
+        if (!resp.ok) return;
+        allEntries = await resp.json();
+        renderTable();
+      } catch (e) {
+        console.error('Failed to load automation log', e);
+      }
+    }
+
+    // Sort on header click
+    document.getElementById('log-table').addEventListener('click', e => {
+      const th = e.target.closest('th[data-col]');
+      if (!th || !th.classList.contains('sortable')) return;
+      const col = th.dataset.col;
+      if (sortCol === col) {
+        sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        sortCol = col;
+        sortDir = col === 'timestamp' ? 'desc' : 'asc';
+      }
+      document.querySelectorAll('.sort-icon').forEach(el => el.textContent = '↕');
+      th.querySelector('.sort-icon').textContent = sortDir === 'asc' ? '↑' : '↓';
+      renderTable();
+    });
+
+    // Re-render on filter change without re-fetching
+    ['filter-automation', 'filter-result', 'filter-limit'].forEach(id => {
+      document.getElementById(id).addEventListener('change', renderTable);
+    });
+
+    // Auto-refresh
+    let autoRefreshTimer;
+    function scheduleAutoRefresh() {
+      clearInterval(autoRefreshTimer);
+      if (document.getElementById('auto-refresh').checked) {
+        autoRefreshTimer = setInterval(loadData, 10000);
+      }
+    }
+    document.getElementById('auto-refresh').addEventListener('change', scheduleAutoRefresh);
+    scheduleAutoRefresh();
+
+    loadData();
+  </script>
+</body>
+</html>

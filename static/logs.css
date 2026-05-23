@@ -1,0 +1,174 @@
+/* Navigation */
+.nav-links {
+  display: flex;
+  gap: 1rem;
+  margin-left: auto;
+}
+
+.nav-links a {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.875rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.nav-links a:hover {
+  color: var(--text);
+  background: var(--border);
+}
+
+.nav-links a.active {
+  color: var(--accent);
+  background: rgba(56, 189, 248, 0.1);
+}
+
+/* Toolbar */
+.log-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.filter-group label {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: 0;
+  cursor: default;
+}
+
+.filter-group select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.auto-refresh-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  cursor: pointer;
+  margin: 0;
+}
+
+/* Table container */
+.log-container {
+  overflow-x: auto;
+  padding: 1rem 1.5rem;
+}
+
+/* Log table */
+.log-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.825rem;
+}
+
+.log-table th,
+.log-table td {
+  padding: 0.45rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.log-table th {
+  color: var(--muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+}
+
+.log-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.log-table th.sortable:hover {
+  color: var(--text);
+}
+
+.sort-icon {
+  font-size: 0.7rem;
+  opacity: 0.6;
+  margin-left: 2px;
+}
+
+.log-table tbody tr:hover {
+  background: rgba(255,255,255,0.03);
+}
+
+.log-table .desc-cell {
+  white-space: normal;
+  max-width: 340px;
+  min-width: 180px;
+}
+
+.mono {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+}
+
+/* Triggered row highlight */
+.row-triggered {
+  background: rgba(245, 158, 11, 0.04);
+}
+
+/* Trigger cell highlight with tooltip */
+.trigger-highlight {
+  position: relative;
+  display: inline-block;
+  background: rgba(245, 158, 11, 0.18);
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  border-radius: 4px;
+  padding: 0.1rem 0.35rem;
+  color: var(--yellow);
+  font-weight: 600;
+  cursor: help;
+}
+
+.trigger-highlight::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--text);
+  white-space: nowrap;
+  z-index: 200;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+.trigger-highlight:hover::after {
+  opacity: 1;
+}

@@ -5,6 +5,7 @@ from typing import Optional
 
 from .awning import awning_client
 from .config import get_config
+from .log_store import log_store
 from .weather import weather_client
 
 logger = logging.getLogger(__name__)
@@ -42,13 +43,16 @@ class AutomationEngine:
         if not cfg.automation_enabled or self._is_overridden():
             if self._is_overridden():
                 self._active_rule = "manual override"
+                log_store.add_automation("manual_override", "Manual override active", False)
             else:
                 self._active_rule = "automation disabled"
+                log_store.add_automation("automation_disabled", "Automation disabled", False)
             return
 
         obs = weather_client.latest_obs
         if not obs:
             self._active_rule = "waiting for weather data"
+            log_store.add_automation("no_weather_data", "Waiting for weather data", False)
             return
 
         rain_now = (obs.get("precip_type", 0) != 0) or (obs.get("rain_prev_min_mm", 0.0) > 0)
@@ -57,16 +61,39 @@ class AutomationEngine:
 
         if cfg.rain_triggers_retract and rain_now:
             self._active_rule = "rain detected → retracting"
+            action_taken = None
             if awning_client.current_state != "undeployed":
                 logger.info("Rain detected, undeploying awning")
                 await awning_client.undeploy()
+                action_taken = "undeploy"
+            log_store.add_automation("rain_protection", self._active_rule, triggered=True, action_taken=action_taken)
+            log_store.add_weather(
+                obs, wind_mph,
+                triggered_automation="rain_protection",
+                triggered_action=action_taken,
+                trigger_field="precip",
+                trigger_reason=(
+                    f"rain detected (type={obs.get('precip_type', 0)}, "
+                    f"{obs.get('rain_prev_min_mm', 0.0):.1f} mm/min)"
+                ),
+            )
             return
 
         if cfg.wind_protection_enabled and wind_mph > cfg.max_wind_mph:
             self._active_rule = f"wind {wind_mph:.1f} mph > {cfg.max_wind_mph} mph → retracting"
+            action_taken = None
             if awning_client.current_state != "undeployed":
                 logger.info("High wind (%.1f mph), undeploying awning", wind_mph)
                 await awning_client.undeploy()
+                action_taken = "undeploy"
+            log_store.add_automation("wind_protection", self._active_rule, triggered=True, action_taken=action_taken)
+            log_store.add_weather(
+                obs, wind_mph,
+                triggered_automation="wind_protection",
+                triggered_action=action_taken,
+                trigger_field="wind_avg_mph",
+                trigger_reason=f"wind {wind_mph:.1f} mph > {cfg.max_wind_mph} mph max",
+            )
             return
 
         sunny = lux > cfg.sunny_lux_threshold
@@ -75,15 +102,30 @@ class AutomationEngine:
             self._active_rule = (
                 f"sunny ({lux} lux) & calm ({wind_mph:.1f} mph) → deploying {cfg.deploy_duration_s}s"
             )
+            action_taken = None
             if awning_client.current_state != "deployed":
                 logger.info(
                     "Sunny and calm (%.1f mph, %d lux), deploying for %ds",
                     wind_mph, lux, cfg.deploy_duration_s,
                 )
                 await awning_client.deploy_timed(cfg.deploy_duration_s)
+                action_taken = "deploy"
+            log_store.add_automation("sunny_deploy", self._active_rule, triggered=True, action_taken=action_taken)
+            log_store.add_weather(
+                obs, wind_mph,
+                triggered_automation="sunny_deploy",
+                triggered_action=action_taken,
+                trigger_field="lux",
+                trigger_reason=(
+                    f"sunny ({lux} lux > {cfg.sunny_lux_threshold} threshold) "
+                    f"& calm ({wind_mph:.1f} mph < {cfg.sunny_wind_max_mph} mph)"
+                ),
+            )
             return
 
         self._active_rule = "conditions nominal — no action"
+        log_store.add_automation("conditions_nominal", self._active_rule, triggered=False)
+        log_store.add_weather(obs, wind_mph)
 
     async def run(self) -> None:
         while True:
