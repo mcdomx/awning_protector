@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Awning Protector</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header>
+    <h1>Awning Protector</h1>
+    <span id="connection-status" class="badge badge-offline">Connecting…</span>
+  </header>
+
+  <main>
+    <!-- Wind panel -->
+    <section class="card" id="wind-card">
+      <h2>Wind</h2>
+      <div class="wind-layout">
+        <svg id="compass" viewBox="0 0 160 160" width="160" height="160">
+          <circle cx="80" cy="80" r="74" class="compass-ring" />
+          <text x="80" y="18" class="compass-label">N</text>
+          <text x="148" y="85" class="compass-label">E</text>
+          <text x="80" y="153" class="compass-label">S</text>
+          <text x="12" y="85" class="compass-label">W</text>
+          <!-- Arrow rotates around centre; transform updated by JS -->
+          <g id="wind-arrow" transform="rotate(0 80 80)">
+            <polygon points="80,20 86,90 80,78 74,90" class="arrow-head" />
+            <line x1="80" y1="78" x2="80" y2="140" class="arrow-tail" />
+          </g>
+        </svg>
+        <div class="wind-stats">
+          <div class="stat">
+            <span class="stat-value" id="wind-speed">--</span>
+            <span class="stat-unit">mph</span>
+            <span class="stat-label">Current</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value" id="wind-avg">--</span>
+            <span class="stat-unit">mph</span>
+            <span class="stat-label">Avg (1 min)</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value" id="wind-gust">--</span>
+            <span class="stat-unit">mph</span>
+            <span class="stat-label">Gust</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value" id="wind-dir">--</span>
+            <span class="stat-unit">°</span>
+            <span class="stat-label">Direction</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Rain / conditions panel -->
+    <section class="card" id="rain-card">
+      <h2>Rain &amp; Conditions</h2>
+      <div class="rain-current">
+        <span class="stat-label">Now</span>
+        <span id="precip-badge" class="badge badge-ok">No rain</span>
+        <span class="stat-label" style="margin-left:1.2rem">UV</span>
+        <span class="stat-value" id="uv-index">--</span>
+        <span class="stat-label" style="margin-left:1.2rem">Lux</span>
+        <span class="stat-value" id="lux">--</span>
+      </div>
+      <div class="forecast-bars" id="forecast-bars">
+        <p class="muted">Forecast loading…</p>
+      </div>
+    </section>
+
+    <!-- Awning status panel -->
+    <section class="card" id="awning-card">
+      <h2>Awning</h2>
+      <div class="awning-status">
+        <span id="awning-state-badge" class="badge badge-unknown">Unknown</span>
+        <span class="stat-label" id="active-rule">--</span>
+      </div>
+      <div class="awning-controls">
+        <button class="btn btn-deploy" onclick="awningCmd('deploy')">Deploy</button>
+        <button class="btn btn-stop" onclick="awningCmd('stop')">Stop</button>
+        <button class="btn btn-undeploy" onclick="awningCmd('undeploy')">Retract</button>
+      </div>
+      <p class="muted" id="override-notice"></p>
+    </section>
+
+    <!-- General settings panel -->
+    <section class="card" id="config-general">
+      <h2>Settings</h2>
+      <div class="automation-card-body">
+        <label>
+          <input type="checkbox" id="cfg-enabled" />
+          Automation enabled (master)
+        </label>
+        <div class="field-row">
+          <label for="cfg-override-min">Manual override (min)</label>
+          <input type="number" id="cfg-override-min" min="0" max="240" step="5" />
+        </div>
+        <button class="btn btn-save" onclick="saveCard('general')">Save</button>
+        <span id="save-status-general" class="muted"></span>
+      </div>
+    </section>
+
+    <!-- Rain protection automation card -->
+    <section class="card automation-card" id="config-rain">
+      <div class="automation-card-header">
+        <label class="automation-toggle">
+          <input type="checkbox" id="cfg-rain-enabled" onchange="updateCardDisabledState()" />
+          <span class="card-title">Rain Protection</span>
+        </label>
+      </div>
+      <div class="automation-card-body">
+        <p class="muted">Retract awning immediately when rain or precipitation is detected.</p>
+        <button class="btn btn-save" onclick="saveCard('rain')">Save</button>
+        <span id="save-status-rain" class="muted"></span>
+      </div>
+    </section>
+
+    <!-- Wind protection automation card -->
+    <section class="card automation-card" id="config-wind">
+      <div class="automation-card-header">
+        <label class="automation-toggle">
+          <input type="checkbox" id="cfg-wind-enabled" onchange="updateCardDisabledState()" />
+          <span class="card-title">Wind Protection</span>
+        </label>
+      </div>
+      <div class="automation-card-body">
+        <div class="field-row">
+          <label for="cfg-max-wind">Max wind (mph)</label>
+          <input type="number" id="cfg-max-wind" min="0" max="60" step="0.5" />
+        </div>
+        <button class="btn btn-save" onclick="saveCard('wind')">Save</button>
+        <span id="save-status-wind" class="muted"></span>
+      </div>
+    </section>
+
+    <!-- Sunny deploy automation card -->
+    <section class="card automation-card" id="config-sunny">
+      <div class="automation-card-header">
+        <label class="automation-toggle">
+          <input type="checkbox" id="cfg-sunny-enabled" onchange="updateCardDisabledState()" />
+          <span class="card-title">Sunny Deploy</span>
+        </label>
+      </div>
+      <div class="automation-card-body">
+        <div class="field-row">
+          <label for="cfg-sunny-lux">Sunny threshold (lux)</label>
+          <input type="number" id="cfg-sunny-lux" min="0" max="150000" step="500" />
+        </div>
+        <div class="field-row">
+          <label for="cfg-sunny-wind">Max wind to deploy (mph)</label>
+          <input type="number" id="cfg-sunny-wind" min="0" max="30" step="0.5" />
+        </div>
+        <div class="field-row">
+          <label for="cfg-deploy-dur">Deploy duration (s)</label>
+          <input type="number" id="cfg-deploy-dur" min="1" max="60" step="1" />
+        </div>
+        <button class="btn btn-save" onclick="saveCard('sunny')">Save</button>
+        <span id="save-status-sunny" class="muted"></span>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
