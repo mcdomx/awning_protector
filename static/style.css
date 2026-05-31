@@ -195,3 +195,33 @@ label { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; cu
 .btn-save { background: var(--accent); color: #000; align-self: flex-start; margin-top: 0.25rem; }
 
 .muted { color: var(--muted); font-size: 0.8rem; }
+
+/* Daily forecast rows */
+#daily-forecast-rows {
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.daily-row {
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.daily-row:last-child { border-bottom: none; }
+
+.daily-row-top {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+}
+.daily-row-bottom {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.2rem;
+  font-size: 0.8rem;
+}
+.daily-day { font-size: 0.85rem; font-weight: 600; min-width: 6rem; }
+.daily-conditions { font-size: 0.85rem; color: var(--muted); }
+.daily-temp-high { font-weight: 600; }
+.daily-temp-low { color: var(--muted); }
+.daily-precip { color: #3b82f6; }
+.daily-wind { color: var(--muted); }
