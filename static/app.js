@@ -12,6 +12,8 @@ const state = {
   forecast: [],
   forecastError: null,
   forecastUpdatedAt: null,
+  hourlyForecast: [],
+  dailyForecast: [],
 };
 
 const MPH = 2.23694;
@@ -57,6 +59,8 @@ function updateTempUnitUI() {
   }
 
   renderForecast(state.forecast, state.forecastError, state.forecastUpdatedAt);
+  renderHourlyForecast(state.hourlyForecast);
+  renderDailyForecast(state.dailyForecast);
 }
 
 /* --- Wind compass --- */
@@ -123,6 +127,116 @@ function renderForecast(forecast, forecastError, forecastUpdatedAt) {
     label('fc-precip', 'Rain') + cells(pcts.map(p => p + '%'), 'fc-precip') +
     label('fc-wind', 'Wind') + cells(winds.map(w => w + 'mph'), 'fc-wind') +
     label('fc-temp', 'Temp') + cells(temps, 'fc-temp');
+}
+
+/* --- Hourly forecast (Tempest) --- */
+function renderHourlyForecast(entries) {
+  const container = el('hourly-forecast-bars');
+  if (!container) return;
+
+  if (!entries || entries.length === 0) {
+    container.innerHTML = '<p class="muted">No hourly forecast data</p>';
+    return;
+  }
+
+  const slice = entries.slice(0, 8);
+  const times = slice.map(e => {
+    const d = new Date(e.time);
+    const h = d.getHours();
+    return (h % 12 || 12) + (h >= 12 ? 'pm' : 'am');
+  });
+  const pcts  = slice.map(e => e.precip_probability ?? 0);
+  const winds = slice.map(e => e.wind_avg != null ? (e.wind_avg * MPH).toFixed(1) : '--');
+  const temps = slice.map(e => {
+    const displayTemp = toDisplayTemp(e.air_temperature ?? null);
+    return displayTemp != null ? `${Math.round(displayTemp)}°` : '--';
+  });
+  const barHeights = pcts.map(p => Math.max(3, p * 0.6));
+
+  function cells(vals, cls) {
+    return vals.map(v => `<div class="fc-cell ${cls}">${v}</div>`).join('');
+  }
+  function label(cls, text) {
+    return `<div class="fc-label ${cls}">${text}</div>`;
+  }
+
+  container.innerHTML =
+    label('fc-time', '') + cells(times, 'fc-time') +
+    label('', '') + slice.map((_, i) =>
+      `<div class="fc-bar-cell"><div class="forecast-bar" style="height:${barHeights[i]}px" title="${pcts[i]}%"></div></div>`
+    ).join('') +
+    label('fc-precip', 'Rain') + cells(pcts.map(p => p + '%'), 'fc-precip') +
+    label('fc-wind', 'Wind') + cells(winds.map(w => w + 'mph'), 'fc-wind') +
+    label('fc-temp', 'Temp') + cells(temps, 'fc-temp');
+}
+
+async function loadHourlyForecast() {
+  const container = el('hourly-forecast-bars');
+  try {
+    const resp = await fetch('/weather/forecast/hourly');
+    if (!resp.ok) {
+      if (container) container.innerHTML = `<p class="muted">Hourly forecast unavailable (${resp.status})</p>`;
+      return;
+    }
+    const data = await resp.json();
+    state.hourlyForecast = data.forecast || [];
+    renderHourlyForecast(state.hourlyForecast);
+    const updatedEl = el('hourly-forecast-updated');
+    if (updatedEl) updatedEl.textContent = `Updated ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  } catch (e) {
+    if (container) container.innerHTML = `<p class="muted">Hourly forecast error: ${e.message}</p>`;
+  }
+}
+
+/* --- Daily forecast (Tempest) --- */
+function renderDailyForecast(entries) {
+  const container = el('daily-forecast-rows');
+  if (!container) return;
+
+  if (!entries || entries.length === 0) {
+    container.innerHTML = '<p class="muted">No daily forecast data</p>';
+    return;
+  }
+
+  container.innerHTML = entries.map(e => {
+    const day = new Date(e.day_start_local).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+    const high = toDisplayTemp(e.air_temp_high ?? null);
+    const low  = toDisplayTemp(e.air_temp_low ?? null);
+    const highStr = high != null ? `${Math.round(high)}°` : '--';
+    const lowStr  = low  != null ? `${Math.round(low)}°`  : '--';
+    const wind = e.wind_avg != null ? (e.wind_avg * MPH).toFixed(1) + ' mph' : '--';
+    const precip = e.precip_probability != null ? `${e.precip_probability}%` : '--';
+    const cond = e.conditions || '';
+    return `<div class="daily-row">
+      <div class="daily-row-top">
+        <span class="daily-day">${day}</span>
+        <span class="daily-conditions">${cond}</span>
+      </div>
+      <div class="daily-row-bottom">
+        <span><span class="daily-temp-high">${highStr}</span>&thinsp;/&thinsp;<span class="daily-temp-low">${lowStr}</span></span>
+        <span class="daily-precip">Rain: ${precip}</span>
+        <span class="daily-wind">Wind: ${wind}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function loadDailyForecast() {
+  const container = el('daily-forecast-rows');
+  try {
+    const resp = await fetch('/weather/forecast/daily');
+    if (!resp.ok) {
+      if (container) container.innerHTML = `<p class="muted">Daily forecast unavailable (${resp.status})</p>`;
+      return;
+    }
+    const data = await resp.json();
+    state.dailyForecast = data.forecast || [];
+    renderDailyForecast(state.dailyForecast);
+    const updatedEl = el('daily-forecast-updated');
+    if (updatedEl) updatedEl.textContent = `Updated ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  } catch (e) {
+    if (container) container.innerHTML = `<p class="muted">Daily forecast error: ${e.message}</p>`;
+  }
 }
 
 /* --- Awning status --- */
@@ -310,6 +424,8 @@ setInterval(refreshAwningStatus, 15000);
 (async () => {
   try { await loadConfig(); } catch (e) { console.error('loadConfig failed', e); }
   try { await loadInitialWeather(); } catch (e) { console.error('loadInitialWeather failed', e); }
+  try { await loadHourlyForecast(); } catch (e) { console.error('loadHourlyForecast failed', e); }
+  try { await loadDailyForecast(); } catch (e) { console.error('loadDailyForecast failed', e); }
   try { await refreshAwningStatus(); } catch (e) { console.error('refreshAwningStatus failed', e); }
   connectSSE();
 })();

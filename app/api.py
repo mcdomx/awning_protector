@@ -1,11 +1,13 @@
 import asyncio
 import json
 import logging
+import os
 from contextlib import asynccontextmanager
 from datetime import timezone
 from pathlib import Path
 from typing import Any, AsyncIterator, Dict, List
 
+import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -17,6 +19,8 @@ from .log_store import AutomationLogEntry, WeatherLogEntry, log_store
 from .weather import weather_client
 
 logger = logging.getLogger(__name__)
+
+WEATHER_URL = os.getenv("WEATHER_URL", "http://localhost:8766")
 
 STATIC_DIR = Path(__file__).parent.parent / "static"
 
@@ -46,6 +50,28 @@ async def index() -> HTMLResponse:
 @app.get("/weather/current")
 async def weather_current() -> Dict[str, Any]:
     return weather_client.current_snapshot()
+
+
+@app.get("/weather/forecast/hourly")
+async def weather_forecast_hourly() -> Dict[str, Any]:
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(f"{WEATHER_URL}/weather/forecast/hourly")
+            resp.raise_for_status()
+        return resp.json()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Forecast unavailable: {exc}")
+
+
+@app.get("/weather/forecast/daily")
+async def weather_forecast_daily() -> Dict[str, Any]:
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(f"{WEATHER_URL}/weather/forecast/daily")
+            resp.raise_for_status()
+        return resp.json()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Forecast unavailable: {exc}")
 
 
 async def _sse_event_stream() -> AsyncIterator[str]:
