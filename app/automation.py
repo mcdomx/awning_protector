@@ -3,6 +3,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+from .ai_agent import ai_engine
 from .awning import awning_client
 from .config import get_config
 from .log_store import log_store
@@ -25,6 +26,7 @@ class AutomationEngine:
         self._sunny_conditions_met_since: Optional[datetime] = None
         self._deployed_by_sunny: bool = False
         self._deploy_started_at: Optional[datetime] = None
+        self._weather_timed_out: bool = False
 
     def set_manual_override(self) -> None:
         cfg = get_config()
@@ -80,6 +82,7 @@ class AutomationEngine:
         if staleness > WEATHER_TIMEOUT_S:
             self._active_rule = f"weather data timeout ({staleness:.0f}s) → retracting"
             self._sunny_conditions_met_since = None
+            self._weather_timed_out = True
             action_taken = None
             if awning_client.current_state != "undeployed":
                 logger.warning("Weather data stale for %.0fs, undeploying awning", staleness)
@@ -91,6 +94,12 @@ class AutomationEngine:
                 "weather_timeout", self._active_rule, triggered=True, action_taken=action_taken
             )
             return
+
+        if self._weather_timed_out:
+            self._weather_timed_out = False
+            if cfg.ai.ai_enabled:
+                logger.info("Weather data recovered after timeout — triggering AI evaluation")
+                ai_engine.trigger_immediate()
 
         rain_now = (obs.get("precip_type", 0) != 0) or (obs.get("rain_prev_min_mm", 0.0) > 0)
         wind_mph = obs.get("wind_avg_m_s", 0.0) * MPH_PER_MS
