@@ -52,6 +52,7 @@ async def test_rain_triggers_undeploy(engine, cfg):
          patch("app.automation.weather_client") as wc, \
          patch("app.automation.awning_client", awning):
         wc.latest_obs = obs
+        wc.seconds_since_last_obs = 5
         wc.forecast = []
         await engine._evaluate()
 
@@ -71,6 +72,7 @@ async def test_high_wind_triggers_undeploy(engine, cfg):
          patch("app.automation.weather_client") as wc, \
          patch("app.automation.awning_client", awning):
         wc.latest_obs = obs
+        wc.seconds_since_last_obs = 5
         wc.forecast = []
         await engine._evaluate()
 
@@ -89,6 +91,7 @@ async def test_sunny_calm_triggers_deploy(engine, cfg):
          patch("app.automation.weather_client") as wc, \
          patch("app.automation.awning_client", awning):
         wc.latest_obs = obs
+        wc.seconds_since_last_obs = 5
         wc.forecast = []
         await engine._evaluate()
 
@@ -112,6 +115,7 @@ async def test_motor_stops_after_deploy_duration(engine, cfg):
          patch("app.automation.weather_client") as wc, \
          patch("app.automation.awning_client", awning):
         wc.latest_obs = obs
+        wc.seconds_since_last_obs = 5
         wc.forecast = []
         await engine._evaluate()
 
@@ -137,6 +141,7 @@ async def test_sunny_deploy_waits_for_dwell_time(engine):
          patch("app.automation.weather_client") as wc, \
          patch("app.automation.awning_client", awning):
         wc.latest_obs = obs
+        wc.seconds_since_last_obs = 5
         wc.forecast = []
         await engine._evaluate()
 
@@ -166,6 +171,7 @@ async def test_sunny_deploy_after_dwell_elapsed(engine):
          patch("app.automation.weather_client") as wc, \
          patch("app.automation.awning_client", awning):
         wc.latest_obs = obs
+        wc.seconds_since_last_obs = 5
         wc.forecast = []
         await engine._evaluate()
 
@@ -184,6 +190,7 @@ async def test_sunny_deploy_blocked_by_low_temperature(engine, cfg):
          patch("app.automation.weather_client") as wc, \
          patch("app.automation.awning_client", awning):
         wc.latest_obs = obs
+        wc.seconds_since_last_obs = 5
         wc.forecast = []
         await engine._evaluate()
 
@@ -205,6 +212,7 @@ async def test_sunny_deploy_blocked_by_rain_forecast(engine, cfg):
          patch("app.automation.weather_client") as wc, \
          patch("app.automation.awning_client", awning):
         wc.latest_obs = obs
+        wc.seconds_since_last_obs = 5
         wc.forecast = forecast
         await engine._evaluate()
 
@@ -224,6 +232,7 @@ async def test_sunny_conditions_ended_retracts_awning(engine, cfg):
          patch("app.automation.weather_client") as wc, \
          patch("app.automation.awning_client", awning):
         wc.latest_obs = obs
+        wc.seconds_since_last_obs = 5
         wc.forecast = []
         await engine._evaluate()
 
@@ -245,6 +254,7 @@ async def test_sunny_conditions_ended_no_retract_if_not_deployed_by_sunny(engine
          patch("app.automation.weather_client") as wc, \
          patch("app.automation.awning_client", awning):
         wc.latest_obs = obs
+        wc.seconds_since_last_obs = 5
         wc.forecast = []
         await engine._evaluate()
 
@@ -265,6 +275,7 @@ async def test_rain_protection_clears_sunny_deploy_flag(engine, cfg):
          patch("app.automation.weather_client") as wc, \
          patch("app.automation.awning_client", awning):
         wc.latest_obs = obs
+        wc.seconds_since_last_obs = 5
         wc.forecast = []
         await engine._evaluate()
 
@@ -283,6 +294,7 @@ async def test_manual_override_skips_rules(engine, cfg):
          patch("app.automation.weather_client") as wc, \
          patch("app.automation.awning_client", awning):
         wc.latest_obs = obs
+        wc.seconds_since_last_obs = 5
         wc.forecast = []
         await engine._evaluate()
 
@@ -300,7 +312,46 @@ async def test_automation_disabled_skips_rules(engine, cfg):
          patch("app.automation.weather_client") as wc, \
          patch("app.automation.awning_client", awning):
         wc.latest_obs = obs
+        wc.seconds_since_last_obs = 5
         wc.forecast = []
         await engine._evaluate()
 
     awning.undeploy.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_ai_mode_does_not_log_automation_entry(engine, cfg):
+    cfg.ai.ai_enabled = True
+    obs = make_obs(illuminance_lux=15000, wind_avg_m_s=1.0)
+
+    with patch("app.automation.get_config", return_value=cfg), \
+         patch("app.automation.weather_client") as wc, \
+         patch("app.automation.awning_client", MagicMock()), \
+         patch("app.automation.log_store") as mock_log:
+        wc.latest_obs = obs
+        wc.seconds_since_last_obs = 5
+        wc.forecast = []
+        await engine._evaluate()
+
+    mock_log.add_automation.assert_not_called()
+    assert "AI mode" in engine.active_rule
+
+
+@pytest.mark.asyncio
+async def test_ai_mode_rain_protection_still_fires(engine, cfg):
+    cfg.ai.ai_enabled = True
+    obs = make_obs(precip_type=1, rain_prev_min_mm=0.5)
+    awning = MagicMock()
+    awning.current_state = "deployed"
+    awning.undeploy = AsyncMock(return_value=True)
+
+    with patch("app.automation.get_config", return_value=cfg), \
+         patch("app.automation.weather_client") as wc, \
+         patch("app.automation.awning_client", awning):
+        wc.latest_obs = obs
+        wc.seconds_since_last_obs = 5
+        wc.forecast = []
+        await engine._evaluate()
+
+    awning.undeploy.assert_awaited_once()
+    assert "rain" in engine.active_rule

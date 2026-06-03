@@ -17,13 +17,18 @@ app/
   weather.py     # WeatherClient — SSE subscriber + OpenWeatherMap forecast + staleness tracking
   awning.py      # AwningClient — HTTP calls to tahoma_awning service
   automation.py  # AutomationEngine — background rule evaluator (10s loop)
-  config.py      # Settings load/save (data/config.json)
+  ai_agent.py    # AIEngine — event-driven Claude agent; runs at startup + next_eval_at
+  ai_tools.py    # Tool implementations for the AI agent (weather, awning, logging)
+  config.py      # Settings load/save (data/config.json); includes AIConfig
   log_store.py   # In-memory automation and weather log ring buffers
+prompts/
+  awning_agent.md.j2      # System prompt for deployment decisions (Jinja2)
+  eval_timing_agent.md.j2 # System prompt for next-eval timing (Jinja2)
 static/
   index.html           # Dashboard
   style.css            # Dashboard styles
   logs.css             # Shared log page styles
-  app.js               # SSE consumer, wind compass SVG, config UI
+  app.js               # SSE consumer, wind compass SVG, config UI, AI status panel
   automation_log.html  # Filterable/sortable automation log
   weather_log.html     # Filterable/sortable weather log
 watchdog.py      # Standalone app-failure watchdog (polls /health, retracts on timeout)
@@ -48,12 +53,26 @@ main.py          # uvicorn entry point (port 8767)
 | GET | `/logs/weather` | Weather log entries (JSON) |
 | GET | `/logs/automation-page` | Automation log UI |
 | GET | `/logs/weather-page` | Weather log UI |
+| GET | `/ai/status` | AI engine state (last eval, next eval, report text) |
+| GET | `/ai/prompts/{name}` | Retrieve prompt template (`awning` or `timing`) |
+| PUT | `/ai/prompts/{name}` | Update and persist prompt template |
+| POST | `/ai/evaluate` | Trigger an immediate AI evaluation |
 
 ## Automation Rules (priority order)
 1. Weather data stale > 120s → undeploy (resumes when data returns)
 2. Rain detected (`precip_type != 0` or `rain_prev_min_mm > 0`) → undeploy
 3. Wind avg > `max_wind_mph` → undeploy
-4. Sunny (`illuminance_lux > sunny_lux_threshold`) + calm (`wind_avg < sunny_wind_max_mph`) + warm + no rain → deploy for `deploy_duration_s` seconds, then stop
+4. **AI mode** (`ai.ai_enabled = true`) → deployment decisions delegated to `AIEngine`; rules 1–3 still run as safety checks
+5. Sunny (`illuminance_lux > sunny_lux_threshold`) + calm (`wind_avg < sunny_wind_max_mph`) + warm + no rain → deploy for `deploy_duration_s` seconds, then stop (skipped when AI mode is active)
+
+## AI Agent (`AIEngine`)
+
+`app/ai_agent.py` runs a Claude-backed evaluation loop:
+- On startup (when `ai_enabled = true`), runs immediately.
+- After each evaluation, sleeps for exactly `next_eval_seconds` (suggested by a second Claude call to `eval_timing_agent.md.j2`) using `asyncio.Event`-driven sleep — no CPU polling.
+- `POST /ai/evaluate` calls `trigger_immediate()` which sets the event to wake the sleep early.
+- Prompt templates live in `prompts/` and can be overridden at runtime via `PUT /ai/prompts/{name}`.
+- Requires `ANTHROPIC_API_KEY` in `.env`; model defaults to `claude-haiku-4-5` (override with `CLAUDE_MODEL`).
 
 ## Fail-Safe Mechanisms
 
@@ -96,6 +115,8 @@ APP_URL=http://localhost:8767        # watchdog uses this; overridden in docker-
 OPENWEATHER_API_KEY=                 # optional — for rain forecast %
 LATITUDE=
 LONGITUDE=
+ANTHROPIC_API_KEY=                   # required for AI deploy mode
+CLAUDE_MODEL=claude-haiku-4-5        # optional — override Claude model for AI evaluations
 ```
 
 > On macOS, `host.docker.internal` resolves automatically.

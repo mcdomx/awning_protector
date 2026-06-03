@@ -216,6 +216,98 @@
         <span id="save-status-sunny" class="muted"></span>
       </div>
     </section>
+
+    <!-- AI Deploy automation card -->
+    <section class="card automation-card" id="config-ai">
+      <div class="automation-card-header">
+        <label class="automation-toggle">
+          <input type="checkbox" id="cfg-ai-enabled" onchange="updateCardDisabledState()" />
+          <span class="card-title">AI Deploy</span>
+        </label>
+      </div>
+      <div class="automation-card-body">
+        <p class="muted">Uses Claude AI to evaluate weather conditions and decide when to deploy. Replaces the Sunny Deploy rule when enabled.</p>
+
+        <div class="ai-status-grid">
+          <span class="ai-status-label">Status</span>
+          <span id="ai-running-badge" class="badge badge-unknown">Idle</span>
+
+          <span class="ai-status-label">Last evaluated</span>
+          <span id="ai-last-eval-time" class="muted">--</span>
+
+          <span class="ai-status-label">Next evaluation</span>
+          <span id="ai-next-eval-countdown" class="muted">--</span>
+        </div>
+
+        <div class="ai-report-section">
+          <span class="ai-report-label">Last evaluation report</span>
+          <pre id="ai-last-eval-text" class="ai-report-pre">No evaluation yet.</pre>
+        </div>
+
+        <button class="btn btn-save" onclick="aiEvaluateNow()" id="ai-evaluate-btn">Evaluate Now</button>
+
+        <hr class="card-divider" />
+
+        <div class="field-row">
+          <label for="cfg-ai-wind">Max current wind (mph)</label>
+          <input type="number" id="cfg-ai-wind" min="0" max="60" step="0.5" />
+        </div>
+        <div class="field-row">
+          <label for="cfg-ai-forecast-wind">Max forecast wind (mph)</label>
+          <input type="number" id="cfg-ai-forecast-wind" min="0" max="60" step="0.5" />
+        </div>
+        <div class="field-row">
+          <label for="cfg-ai-forecast-hours">Forecast outlook (hours)</label>
+          <input type="number" id="cfg-ai-forecast-hours" min="1" max="24" step="1" />
+        </div>
+        <div class="field-row">
+          <label for="cfg-ai-min-temp">Min temperature (°F)</label>
+          <input type="number" id="cfg-ai-min-temp" min="0" max="120" step="1" />
+        </div>
+        <div class="field-row">
+          <label for="cfg-ai-earliest">Earliest deployment</label>
+          <input type="text" id="cfg-ai-earliest" placeholder="e.g. 8AM" style="width:6rem" />
+        </div>
+        <div class="field-row">
+          <label for="cfg-ai-latest">Latest deployment</label>
+          <input type="text" id="cfg-ai-latest" placeholder="e.g. 6PM" style="width:6rem" />
+        </div>
+        <div class="field-row">
+          <label for="cfg-ai-max-deploy">Max deploy duration (s)</label>
+          <input type="number" id="cfg-ai-max-deploy" min="1" max="60" step="1" />
+        </div>
+        <div class="field-row">
+          <label for="cfg-ai-min-deploy">Min deploy duration (s)</label>
+          <input type="number" id="cfg-ai-min-deploy" min="1" max="60" step="1" />
+        </div>
+        <div class="field-row">
+          <label for="cfg-ai-min-interval">Min eval interval (s)</label>
+          <input type="number" id="cfg-ai-min-interval" min="60" max="7200" step="60" />
+        </div>
+        <button class="btn btn-save" onclick="saveCard('ai')">Save Settings</button>
+        <span id="save-status-ai" class="muted"></span>
+
+        <hr class="card-divider" />
+
+        <details class="ai-prompt-details">
+          <summary>Edit Awning Agent Prompt</summary>
+          <textarea id="cfg-ai-prompt-awning" class="ai-prompt-textarea" rows="20" spellcheck="false"></textarea>
+          <div class="prompt-actions">
+            <button class="btn btn-save" onclick="savePrompt('awning')">Save Prompt</button>
+            <span id="save-status-prompt-awning" class="muted"></span>
+          </div>
+        </details>
+
+        <details class="ai-prompt-details">
+          <summary>Edit Timing Agent Prompt</summary>
+          <textarea id="cfg-ai-prompt-timing" class="ai-prompt-textarea" rows="12" spellcheck="false"></textarea>
+          <div class="prompt-actions">
+            <button class="btn btn-save" onclick="savePrompt('timing')">Save Prompt</button>
+            <span id="save-status-prompt-timing" class="muted"></span>
+          </div>
+        </details>
+      </div>
+    </section>
   </main>
 
   <script src="/static/app.js"></script>

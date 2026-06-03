@@ -12,6 +12,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
+from .ai_agent import VALID_PROMPT_NAMES, ai_engine, load_prompt, save_prompt
 from .automation import automation_engine
 from .awning import awning_client
 from .config import AutomationConfig, get_config, save_config
@@ -29,6 +30,7 @@ STATIC_DIR = Path(__file__).parent.parent / "static"
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await weather_client.start()
     asyncio.create_task(automation_engine.run())
+    asyncio.create_task(ai_engine.run())
     yield
 
 
@@ -147,6 +149,41 @@ async def config_get() -> AutomationConfig:
 async def config_put(cfg: AutomationConfig) -> AutomationConfig:
     save_config(cfg)
     return cfg
+
+
+@app.get("/ai/status")
+async def ai_status() -> Dict[str, Any]:
+    last_at = ai_engine.last_eval_at
+    next_at = ai_engine.next_eval_at
+    return {
+        "enabled": get_config().ai.ai_enabled,
+        "is_running": ai_engine.is_running,
+        "last_eval_text": ai_engine.last_eval_text,
+        "last_eval_at": last_at.isoformat() if last_at else None,
+        "next_eval_at": next_at.isoformat() if next_at else None,
+    }
+
+
+@app.get("/ai/prompts/{name}")
+async def ai_prompt_get(name: str) -> Dict[str, str]:
+    if name not in VALID_PROMPT_NAMES:
+        raise HTTPException(status_code=404, detail=f"Unknown prompt: {name}")
+    return {"name": name, "content": load_prompt(name)}
+
+
+@app.put("/ai/prompts/{name}")
+async def ai_prompt_put(name: str, body: Dict[str, str]) -> Dict[str, str]:
+    if name not in VALID_PROMPT_NAMES:
+        raise HTTPException(status_code=404, detail=f"Unknown prompt: {name}")
+    content = body.get("content", "")
+    save_prompt(name, content)
+    return {"name": name, "content": content}
+
+
+@app.post("/ai/evaluate")
+async def ai_evaluate() -> Dict[str, str]:
+    ai_engine.trigger_immediate()
+    return {"status": "evaluation scheduled"}
 
 
 @app.get("/logs/automation-page", response_class=HTMLResponse)

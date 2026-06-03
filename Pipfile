@@ -9,6 +9,9 @@ uvicorn = {extras = ["standard"]}
 httpx = "*"
 python-dotenv = "*"
 pydantic = ">=2.0"
+anthropic = "*"
+jinja2 = "*"
+requests = "*"
 
 [dev-packages]
 pytest = "*"

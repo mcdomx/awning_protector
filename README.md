@@ -28,6 +28,7 @@ Open **http://localhost:8767** in a browser.
 - **Rain status** — real-time from Tempest sensor (precip type + mm/min)
 - **Rain forecast** — hourly rain probability bars from OpenWeatherMap (requires API key)
 - **Automation rules** — retract on rain, retract on high wind, deploy when sunny & calm
+- **AI deploy mode** — Claude AI evaluates weather conditions and decides when to deploy; runs at startup and at AI-suggested intervals to minimise token usage; editable prompts via the dashboard
 - **Weather data watchdog** — retracts awning if weather station goes silent for 2 minutes
 - **App failure watchdog** — separate process retracts awning directly if this app crashes
 - **Manual controls** — Deploy / Stop / Retract buttons with temporary override
@@ -51,6 +52,8 @@ Requires two sibling services running on the same host:
 | `OPENWEATHER_API_KEY` | _(empty)_ | OpenWeatherMap API key for forecast |
 | `LATITUDE` | _(empty)_ | Your latitude (required for forecast) |
 | `LONGITUDE` | _(empty)_ | Your longitude (required for forecast) |
+| `ANTHROPIC_API_KEY` | _(empty)_ | Required to enable AI deploy mode |
+| `CLAUDE_MODEL` | `claude-haiku-4-5` | Claude model used for AI evaluations |
 
 ## Fail-Safe Behavior
 
