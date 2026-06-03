@@ -3,10 +3,23 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 DATA_DIR = Path(os.getenv("DATA_DIR", "data"))
 CONFIG_PATH = DATA_DIR / "config.json"
+
+
+class AIConfig(BaseModel):
+    ai_enabled: bool = False
+    current_wind_threshold_mph: float = 3.0
+    forecasted_wind_threshold_mph: float = 8.0
+    earliest_auto_deployment: str = "8AM"
+    latest_auto_deployment: str = "6PM"
+    forecast_outlook_hours: int = 2
+    max_deployment_seconds: int = 5
+    min_deployment_seconds: int = 2
+    min_deployment_temp_f: float = 65.0
+    min_eval_interval_seconds: int = 300
 
 
 class AutomationConfig(BaseModel):
@@ -22,6 +35,7 @@ class AutomationConfig(BaseModel):
     rain_triggers_retract: bool = True
     wind_protection_enabled: bool = True
     sunny_deploy_enabled: bool = True
+    ai: AIConfig = Field(default_factory=AIConfig)
 
     @model_validator(mode="before")
     @classmethod

@@ -151,6 +151,11 @@ class AutomationEngine:
             )
             return
 
+        if cfg.ai.ai_enabled:
+            self._active_rule = "AI mode active — deployment decisions delegated to AI agent"
+            log_store.add_weather(obs, wind_mph)
+            return
+
         sunny = lux > cfg.sunny_lux_threshold
         calm = wind_mph < cfg.sunny_wind_max_mph
         rain_forecast = self._rain_forecast_2h()
