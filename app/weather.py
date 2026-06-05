@@ -26,6 +26,7 @@ class WeatherClient:
         self._lock = asyncio.Lock()
         self._last_forecast_fetch: Optional[datetime] = None
         self._last_obs_at: Optional[datetime] = None
+        self._new_wind_event: asyncio.Event = asyncio.Event()
 
     @property
     def seconds_since_last_obs(self) -> Optional[float]:
@@ -71,8 +72,10 @@ class WeatherClient:
                             if msg_type == "obs_st":
                                 self.latest_obs = data
                                 self._last_obs_at = datetime.now(timezone.utc)
+                                self._new_wind_event.set()
                             elif msg_type == "rapid_wind":
                                 self.latest_wind = data
+                                self._new_wind_event.set()
                             await self._fan_out(msg)
             except Exception as exc:
                 logger.warning("SSE stream error, reconnecting in 5s: %s", exc)
@@ -110,6 +113,10 @@ class WeatherClient:
         except Exception as exc:
             self.forecast_error = str(exc)
             logger.warning("Forecast fetch failed: %s", exc)
+
+    async def wait_for_wind_data(self) -> None:
+        await self._new_wind_event.wait()
+        self._new_wind_event.clear()
 
     def current_snapshot(self) -> Dict[str, Any]:
         return {

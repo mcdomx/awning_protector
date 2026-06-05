@@ -79,6 +79,9 @@ main.py          # uvicorn entry point (port 8767)
 ### Weather data timeout (in-app)
 `WeatherClient` tracks `_last_obs_at` on every `obs_st` event. `AutomationEngine._evaluate()` reads `seconds_since_last_obs` each cycle. If > `WEATHER_TIMEOUT_S` (120s), it issues undeploy and logs `weather_timeout`. Normal evaluation resumes automatically once data flows again.
 
+### Real-time wind guard (in-app)
+`AutomationEngine._wind_guard()` runs concurrently with the 10-second polling loop via `asyncio.gather()`. It blocks on `WeatherClient.wait_for_wind_data()`, which is signalled on every `obs_st` and `rapid_wind` SSE message (~3 s cadence). When wind exceeds `max_wind_mph` and the awning is not already retracted, it calls `awning_client.undeploy()` immediately — no polling delay, no AI evaluation cycle wait. The 10-second loop still owns all logging and state bookkeeping.
+
 ### App watchdog (external process)
 `watchdog.py` polls `APP_URL/health` every 30s. If unreachable for >= `FAILURE_TIMEOUT_S` (120s), it calls `AWNING_URL/awning/undeploy` directly, bypassing the main app. On recovery it resets and logs the downtime. In Docker it runs as the `awning-watchdog` service.
 
