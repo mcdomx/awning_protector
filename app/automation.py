@@ -268,13 +268,42 @@ class AutomationEngine:
         log_store.add_automation("conditions_nominal", self._active_rule, triggered=False)
         log_store.add_weather(obs, wind_mph)
 
-    async def run(self) -> None:
+    async def _wind_guard(self) -> None:
+        while True:
+            try:
+                await weather_client.wait_for_wind_data()
+                cfg = get_config()
+                if not cfg.automation_enabled or not cfg.wind_protection_enabled or self._is_overridden():
+                    continue
+                staleness = weather_client.seconds_since_last_obs
+                if staleness is not None and staleness > WEATHER_TIMEOUT_S:
+                    continue
+                obs = weather_client.latest_obs
+                rapid = weather_client.latest_wind
+                wind_avg_mph = obs.get("wind_avg_m_s", 0.0) * MPH_PER_MS if obs else 0.0
+                wind_rapid_mph = rapid.get("wind_speed_m_s", 0.0) * MPH_PER_MS if rapid else 0.0
+                wind_mph = max(wind_avg_mph, wind_rapid_mph)
+                if wind_mph > cfg.max_wind_mph and awning_client.current_state != "undeployed":
+                    logger.info(
+                        "Wind guard: %.1f mph > %.1f mph — retracting immediately",
+                        wind_mph, cfg.max_wind_mph,
+                    )
+                    await awning_client.undeploy()
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.error("Wind guard error: %s", exc)
+
+    async def _poll_loop(self) -> None:
         while True:
             try:
                 await self._evaluate()
             except Exception as exc:
                 logger.error("Automation engine error: %s", exc)
             await asyncio.sleep(EVAL_INTERVAL_S)
+
+    async def run(self) -> None:
+        await asyncio.gather(self._poll_loop(), self._wind_guard())
 
 
 automation_engine = AutomationEngine()
