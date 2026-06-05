@@ -213,7 +213,14 @@ class AIEngine:
         return self._is_running
 
     def trigger_immediate(self) -> None:
+        if not get_config().ai.ai_enabled:
+            return
         self._next_eval_at = datetime.now(timezone.utc)
+        if self._wakeup is not None:
+            self._wakeup.set()
+
+    def notify_config_changed(self) -> None:
+        """Wake the run loop so it re-checks ai_enabled without waiting for the next sleep to expire."""
         if self._wakeup is not None:
             self._wakeup.set()
 
@@ -225,6 +232,7 @@ class AIEngine:
 
             cfg = get_config()
             if not cfg.ai.ai_enabled:
+                self._next_eval_at = None
                 try:
                     await asyncio.wait_for(self._wakeup.wait(), timeout=10)
                 except asyncio.TimeoutError:
@@ -243,18 +251,23 @@ class AIEngine:
             self._is_running = True
             try:
                 result = await asyncio.to_thread(_run_awning_agent, cfg.ai)
-                self._last_eval_text = result["evaluation_text"]
-                self._last_eval_at = datetime.now(timezone.utc)
-                next_secs = result["next_eval_seconds"]
-                self._next_eval_at = self._last_eval_at + timedelta(seconds=next_secs)
-                logger.info(
-                    "AI agent evaluation complete. Next evaluation in %ds", next_secs
-                )
+                if get_config().ai.ai_enabled:
+                    self._last_eval_text = result["evaluation_text"]
+                    self._last_eval_at = datetime.now(timezone.utc)
+                    next_secs = result["next_eval_seconds"]
+                    self._next_eval_at = self._last_eval_at + timedelta(seconds=next_secs)
+                    logger.info(
+                        "AI agent evaluation complete. Next evaluation in %ds", next_secs
+                    )
+                else:
+                    logger.info("AI disabled while evaluation was running; discarding result")
+                    self._next_eval_at = None
             except Exception as exc:
                 logger.error("AI agent error: %s", exc)
-                self._last_eval_text = f"Evaluation error: {exc}"
-                self._last_eval_at = datetime.now(timezone.utc)
-                self._next_eval_at = self._last_eval_at + timedelta(seconds=300)
+                if get_config().ai.ai_enabled:
+                    self._last_eval_text = f"Evaluation error: {exc}"
+                    self._last_eval_at = datetime.now(timezone.utc)
+                    self._next_eval_at = self._last_eval_at + timedelta(seconds=300)
             finally:
                 self._is_running = False
 

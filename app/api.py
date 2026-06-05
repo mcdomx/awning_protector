@@ -148,6 +148,7 @@ async def config_get() -> AutomationConfig:
 @app.put("/config")
 async def config_put(cfg: AutomationConfig) -> AutomationConfig:
     save_config(cfg)
+    ai_engine.notify_config_changed()
     return cfg
 
 

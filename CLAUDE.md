@@ -70,7 +70,10 @@ main.py          # uvicorn entry point (port 8767)
 `app/ai_agent.py` runs a Claude-backed evaluation loop:
 - On startup (when `ai_enabled = true`), runs immediately.
 - After each evaluation, sleeps for exactly `next_eval_seconds` (suggested by a second Claude call to `eval_timing_agent.md.j2`) using `asyncio.Event`-driven sleep — no CPU polling.
-- `POST /ai/evaluate` calls `trigger_immediate()` which sets the event to wake the sleep early.
+- `POST /ai/evaluate` calls `trigger_immediate()` which sets the event to wake the sleep early. `trigger_immediate()` is a no-op when `ai_enabled = false`.
+- `PUT /config` calls `notify_config_changed()` which wakes the loop immediately so it re-checks `ai_enabled` — disabling AI takes effect within seconds rather than waiting for the current sleep interval to expire.
+- If an evaluation is in-flight when AI is disabled, the result is discarded and no next evaluation is scheduled.
+- `_next_eval_at` is cleared when AI is disabled; re-enabling triggers an immediate evaluation.
 - Prompt templates live in `prompts/` and can be overridden at runtime via `PUT /ai/prompts/{name}`.
 - Requires `ANTHROPIC_API_KEY` in `.env`; model defaults to `claude-haiku-4-5` (override with `CLAUDE_MODEL`).
 
