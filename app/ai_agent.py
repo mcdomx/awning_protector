@@ -9,7 +9,7 @@ import jinja2
 from anthropic import Anthropic
 from anthropic.types import Message
 
-from .ai_tools import execute_tool, tool_schemas
+from .ai_tools import action_tool_schemas, build_weather_context, execute_action_tool
 from .config import DATA_DIR, get_config
 from .log_store import log_store
 
@@ -134,9 +134,10 @@ def _run_awning_agent(cfg) -> dict:
     system_blocks = _build_awning_system_blocks(cfg)
     chat = _Claude(model=model)
     messages = []
+    weather_context = build_weather_context()
     chat.add_user_message(
         messages,
-        "Determine if the patio awning should be extended or retracted.",
+        f"{weather_context}\n\nDetermine if the patio awning should be extended or retracted.",
     )
 
     while True:
@@ -144,7 +145,7 @@ def _run_awning_agent(cfg) -> dict:
             messages,
             system_blocks=system_blocks,
             temperature=0,
-            tools=tool_schemas,
+            tools=action_tool_schemas,
             streaming=True,
         )
         chat.add_assistant_message(messages, response)
@@ -164,7 +165,7 @@ def _run_awning_agent(cfg) -> dict:
         tool_results = []
         for block in response.content:
             if block.type == "tool_use":
-                result = execute_tool(block.name, block.input)
+                result = execute_action_tool(block.name, block.input)
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,
