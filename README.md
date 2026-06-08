@@ -27,9 +27,9 @@ Open **http://localhost:8767** in a browser.
 - **Live wind compass** — SVG direction arrow updated every 3 seconds via SSE
 - **Rain status** — real-time from Tempest sensor (precip type + mm/min)
 - **Rain forecast** — hourly rain probability bars from OpenWeatherMap (requires API key)
-- **Automation rules** — retract on rain, retract on high wind, deploy when sunny & calm
+- **Automation rules** — retract on rain, retract on high wind; deploy decisions are delegated to AI deploy mode
 - **Real-time wind guard** — event-driven coroutine reacts to every `rapid_wind` SSE message (~3 s cadence), retracting immediately when the threshold is exceeded without waiting for the 10-second polling cycle or an AI evaluation
-- **AI deploy mode** — Claude AI evaluates weather conditions and decides when to deploy; runs at startup and at AI-suggested intervals to minimise token usage; editable prompts via the dashboard
+- **AI deploy mode** — a multi-agent Claude pipeline (wind/rain/forecast/solar workers → coordinator → orchestrator) evaluates weather conditions and decides when to deploy; runs at startup and at orchestrator-suggested intervals to minimise token usage; editable prompts via the dashboard
 - **Weather data watchdog** — retracts awning if weather station goes silent for 2 minutes
 - **App failure watchdog** — separate process retracts awning directly if this app crashes
 - **Manual controls** — Deploy / Stop / Retract buttons with temporary override

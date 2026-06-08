@@ -17,13 +17,18 @@ app/
   weather.py     # WeatherClient — SSE subscriber + OpenWeatherMap forecast + staleness tracking
   awning.py      # AwningClient — HTTP calls to tahoma_awning service
   automation.py  # AutomationEngine — background rule evaluator (10s loop)
-  ai_agent.py    # AIEngine — event-driven Claude agent; runs at startup + next_eval_at
+  ai_agent.py    # AIEngine — event-driven scheduling loop; _Claude wrapper; prompt load/save
+  ai_pipeline.py # Worker/coordinator/orchestrator multi-agent pipeline (run_ai_pipeline)
   ai_tools.py    # Tool implementations for the AI agent (weather, awning, logging)
   config.py      # Settings load/save (data/config.json); includes AIConfig
   log_store.py   # In-memory automation and weather log ring buffers
 prompts/
-  awning_agent.md.j2      # System prompt for deployment decisions (Jinja2)
-  eval_timing_agent.md.j2 # System prompt for next-eval timing (Jinja2)
+  wind_worker.md.j2       # Wind risk assessment worker (Jinja2)
+  rain_worker.md.j2       # Rain risk assessment worker (Jinja2)
+  forecast_worker.md.j2   # Forecast risk assessment worker (Jinja2)
+  solar_worker.md.j2      # Solar/deploy-benefit assessment worker (Jinja2)
+  coordinator.md.j2       # Synthesizes worker assessments into a brief (Jinja2)
+  orchestrator.md.j2      # Final deploy/retract decision + next-eval timing (Jinja2)
 static/
   index.html           # Dashboard
   style.css            # Dashboard styles
@@ -54,7 +59,7 @@ main.py          # uvicorn entry point (port 8767)
 | GET | `/logs/automation-page` | Automation log UI |
 | GET | `/logs/weather-page` | Weather log UI |
 | GET | `/ai/status` | AI engine state (last eval, next eval, report text) |
-| GET | `/ai/prompts/{name}` | Retrieve prompt template (`awning` or `timing`) |
+| GET | `/ai/prompts/{name}` | Retrieve prompt template (`wind`, `rain`, `forecast`, `solar`, `coordinator`, `orchestrator`) |
 | PUT | `/ai/prompts/{name}` | Update and persist prompt template |
 | POST | `/ai/evaluate` | Trigger an immediate AI evaluation |
 
@@ -62,19 +67,42 @@ main.py          # uvicorn entry point (port 8767)
 1. Weather data stale > 120s → undeploy (resumes when data returns)
 2. Rain detected (`precip_type != 0` or `rain_prev_min_mm > 0`) → undeploy
 3. Wind avg > `max_wind_mph` → undeploy
-4. **AI mode** (`ai.ai_enabled = true`) → deployment decisions delegated to `AIEngine`; rules 1–3 still run as safety checks
-5. Sunny (`illuminance_lux > sunny_lux_threshold`) + calm (`wind_avg < sunny_wind_max_mph`) + warm + no rain → deploy for `deploy_duration_s` seconds, then stop (skipped when AI mode is active)
+4. **AI mode** (`ai.ai_enabled = true`) → all deployment decisions delegated to `AIEngine`; rules 1–3 still run as safety checks
 
-## AI Agent (`AIEngine`)
+There is no rule-based deploy path — deploy decisions rely entirely on AI deploy mode (rule 4).
+With AI mode disabled, the engine only ever retracts (rules 1–3); it never deploys on its own.
 
-`app/ai_agent.py` runs a Claude-backed evaluation loop:
+## AI Agent (`AIEngine` + multi-agent pipeline)
+
+`app/ai_agent.py` owns scheduling: the `_Claude` wrapper, prompt template load/save, and the
+`AIEngine` evaluation loop. `app/ai_pipeline.py` (`run_ai_pipeline`) implements the actual
+decision-making as a worker → coordinator → orchestrator pipeline (ported from
+`notebooks/multi_agent_sandbox.ipynb`):
+
+1. **Workers** (`run_wind_worker`, `run_rain_worker`, `run_forecast_worker`, `run_solar_worker`) —
+   four small, tool-free Claude calls that each return a compact JSON risk assessment
+   (`{"risk": ..., "reasoning": ...}`) from pre-formatted weather text.
+2. **Fast path** — if the wind or rain worker reports `risk` of `moderate`/`high`, the forecast
+   and solar workers and the coordinator call are skipped entirely; a `MUST_RETRACT` brief is
+   synthesized directly in code and handed to the orchestrator. This trims token usage when an
+   immediate retract is obviously correct.
+3. **Coordinator** (`run_coordinator`) — one Claude call that synthesizes the four worker
+   assessments (skipped on the fast path) into a concise plain-text brief.
+4. **Orchestrator** (`run_orchestrator`) — the only pipeline stage with tool access
+   (`action_tool_schemas` / `execute_action_tool`: deploy/retract/log/status). It reads the brief,
+   takes action, and emits a final `ORCHESTRATOR REPORT` that also states
+   `Next Eval In: <seconds>` — folding next-eval timing into this single call rather than running
+   a separate timing agent.
+
+`AIEngine` scheduling behavior:
 - On startup (when `ai_enabled = true`), runs immediately.
-- After each evaluation, sleeps for exactly `next_eval_seconds` (suggested by a second Claude call to `eval_timing_agent.md.j2`) using `asyncio.Event`-driven sleep — no CPU polling.
+- After each evaluation, sleeps for exactly `next_eval_seconds` — parsed from the orchestrator's
+  `Next Eval In:` line via `_parse_next_eval` (regex) — using `asyncio.Event`-driven sleep, no CPU polling.
 - `POST /ai/evaluate` calls `trigger_immediate()` which sets the event to wake the sleep early. `trigger_immediate()` is a no-op when `ai_enabled = false`.
 - `PUT /config` calls `notify_config_changed()` which wakes the loop immediately so it re-checks `ai_enabled` — disabling AI takes effect within seconds rather than waiting for the current sleep interval to expire.
 - If an evaluation is in-flight when AI is disabled, the result is discarded and no next evaluation is scheduled.
 - `_next_eval_at` is cleared when AI is disabled; re-enabling triggers an immediate evaluation.
-- Prompt templates live in `prompts/` and can be overridden at runtime via `PUT /ai/prompts/{name}`.
+- All six prompt templates live in `prompts/` and can be overridden at runtime via `PUT /ai/prompts/{name}` (rendered with `_build_system_blocks`, a generic Jinja2 + prompt-cache system-block builder shared by every stage).
 - Requires `ANTHROPIC_API_KEY` in `.env`; model defaults to `claude-haiku-4-5` (override with `CLAUDE_MODEL`).
 
 ## Fail-Safe Mechanisms
