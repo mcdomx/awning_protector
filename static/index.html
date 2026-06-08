@@ -183,40 +183,6 @@
       </div>
     </section>
 
-    <!-- Sunny deploy automation card -->
-    <section class="card automation-card" id="config-sunny">
-      <div class="automation-card-header">
-        <label class="automation-toggle">
-          <input type="checkbox" id="cfg-sunny-enabled" onchange="updateCardDisabledState()" />
-          <span class="card-title">Sunny Deploy</span>
-        </label>
-      </div>
-      <div class="automation-card-body">
-        <div class="field-row">
-          <label for="cfg-sunny-lux">Sunny threshold (lux)</label>
-          <input type="number" id="cfg-sunny-lux" min="0" max="150000" step="500" />
-        </div>
-        <div class="field-row">
-          <label for="cfg-sunny-wind">Max wind to deploy (mph)</label>
-          <input type="number" id="cfg-sunny-wind" min="0" max="30" step="0.5" />
-        </div>
-        <div class="field-row">
-          <label for="cfg-deploy-dur">Deploy duration (s)</label>
-          <input type="number" id="cfg-deploy-dur" min="1" max="60" step="1" />
-        </div>
-        <div class="field-row">
-          <label for="cfg-min-temp">Min temperature to deploy (<span id="temp-unit-setting-label">°F</span>)</label>
-          <input type="number" id="cfg-min-temp" min="0" max="120" step="1" />
-        </div>
-        <div class="field-row">
-          <label for="cfg-deploy-dwell">Conditions dwell before deploy (s)</label>
-          <input type="number" id="cfg-deploy-dwell" min="0" max="600" step="10" />
-        </div>
-        <button class="btn btn-save" onclick="saveCard('sunny')">Save</button>
-        <span id="save-status-sunny" class="muted"></span>
-      </div>
-    </section>
-
     <!-- AI Deploy automation card -->
     <section class="card automation-card" id="config-ai">
       <div class="automation-card-header">
@@ -226,7 +192,7 @@
         </label>
       </div>
       <div class="automation-card-body">
-        <p class="muted">Uses Claude AI to evaluate weather conditions and decide when to deploy. Replaces the Sunny Deploy rule when enabled.</p>
+        <p class="muted">Uses Claude AI to evaluate weather conditions and decide when to deploy.</p>
 
         <div class="ai-status-grid">
           <span class="ai-status-label">Status</span>
@@ -290,20 +256,56 @@
         <hr class="card-divider" />
 
         <details class="ai-prompt-details">
-          <summary>Edit Awning Agent Prompt</summary>
-          <textarea id="cfg-ai-prompt-awning" class="ai-prompt-textarea" rows="20" spellcheck="false"></textarea>
+          <summary>Edit Wind Worker Prompt</summary>
+          <textarea id="cfg-ai-prompt-wind" class="ai-prompt-textarea" rows="10" spellcheck="false"></textarea>
           <div class="prompt-actions">
-            <button class="btn btn-save" onclick="savePrompt('awning')">Save Prompt</button>
-            <span id="save-status-prompt-awning" class="muted"></span>
+            <button class="btn btn-save" onclick="savePrompt('wind')">Save Prompt</button>
+            <span id="save-status-prompt-wind" class="muted"></span>
           </div>
         </details>
 
         <details class="ai-prompt-details">
-          <summary>Edit Timing Agent Prompt</summary>
-          <textarea id="cfg-ai-prompt-timing" class="ai-prompt-textarea" rows="12" spellcheck="false"></textarea>
+          <summary>Edit Rain Worker Prompt</summary>
+          <textarea id="cfg-ai-prompt-rain" class="ai-prompt-textarea" rows="10" spellcheck="false"></textarea>
           <div class="prompt-actions">
-            <button class="btn btn-save" onclick="savePrompt('timing')">Save Prompt</button>
-            <span id="save-status-prompt-timing" class="muted"></span>
+            <button class="btn btn-save" onclick="savePrompt('rain')">Save Prompt</button>
+            <span id="save-status-prompt-rain" class="muted"></span>
+          </div>
+        </details>
+
+        <details class="ai-prompt-details">
+          <summary>Edit Forecast Worker Prompt</summary>
+          <textarea id="cfg-ai-prompt-forecast" class="ai-prompt-textarea" rows="10" spellcheck="false"></textarea>
+          <div class="prompt-actions">
+            <button class="btn btn-save" onclick="savePrompt('forecast')">Save Prompt</button>
+            <span id="save-status-prompt-forecast" class="muted"></span>
+          </div>
+        </details>
+
+        <details class="ai-prompt-details">
+          <summary>Edit Solar Worker Prompt</summary>
+          <textarea id="cfg-ai-prompt-solar" class="ai-prompt-textarea" rows="10" spellcheck="false"></textarea>
+          <div class="prompt-actions">
+            <button class="btn btn-save" onclick="savePrompt('solar')">Save Prompt</button>
+            <span id="save-status-prompt-solar" class="muted"></span>
+          </div>
+        </details>
+
+        <details class="ai-prompt-details">
+          <summary>Edit Coordinator Prompt</summary>
+          <textarea id="cfg-ai-prompt-coordinator" class="ai-prompt-textarea" rows="14" spellcheck="false"></textarea>
+          <div class="prompt-actions">
+            <button class="btn btn-save" onclick="savePrompt('coordinator')">Save Prompt</button>
+            <span id="save-status-prompt-coordinator" class="muted"></span>
+          </div>
+        </details>
+
+        <details class="ai-prompt-details">
+          <summary>Edit Orchestrator Prompt</summary>
+          <textarea id="cfg-ai-prompt-orchestrator" class="ai-prompt-textarea" rows="20" spellcheck="false"></textarea>
+          <div class="prompt-actions">
+            <button class="btn btn-save" onclick="savePrompt('orchestrator')">Save Prompt</button>
+            <span id="save-status-prompt-orchestrator" class="muted"></span>
           </div>
         </details>
       </div>

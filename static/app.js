@@ -40,19 +40,6 @@ function updateTempUnitUI() {
   const unitLabel = el('temp-unit-label');
   if (unitLabel) unitLabel.textContent = tempUnitLabel();
 
-  const settingLabel = el('temp-unit-setting-label');
-  if (settingLabel) settingLabel.textContent = tempUnitLabel();
-
-  const minTempInput = el('cfg-min-temp');
-  if (minTempInput && currentConfig.min_temp_c != null) {
-    const isC = (currentConfig.temp_unit || 'F') === 'C';
-    const displayVal = toDisplayTemp(currentConfig.min_temp_c);
-    minTempInput.value = isC ? Number(displayVal).toFixed(1) : Math.round(displayVal);
-    minTempInput.min = isC ? 0 : 32;
-    minTempInput.max = isC ? 50 : 120;
-    minTempInput.step = isC ? 0.5 : 1;
-  }
-
   if (state.airTempC != null) {
     const isC = (currentConfig.temp_unit || 'F') === 'C';
     setNum('air-temp', toDisplayTemp(state.airTempC), isC ? 1 : 0);
@@ -266,7 +253,7 @@ function updateAwningStatus(data) {
 let currentConfig = {};
 
 function updateCardDisabledState() {
-  [['rain', 'cfg-rain-enabled'], ['wind', 'cfg-wind-enabled'], ['sunny', 'cfg-sunny-enabled'], ['ai', 'cfg-ai-enabled']].forEach(([name, checkId]) => {
+  [['rain', 'cfg-rain-enabled'], ['wind', 'cfg-wind-enabled'], ['ai', 'cfg-ai-enabled']].forEach(([name, checkId]) => {
     const checkbox = el(checkId);
     const body = el(`config-${name}`)?.querySelector('.automation-card-body');
     if (body && checkbox) body.classList.toggle('card-body-disabled', !checkbox.checked);
@@ -288,12 +275,6 @@ async function loadConfig() {
   el('cfg-rain-enabled').checked = currentConfig.rain_triggers_retract;
   el('cfg-wind-enabled').checked = currentConfig.wind_protection_enabled;
   el('cfg-max-wind').value = currentConfig.max_wind_mph;
-  el('cfg-sunny-enabled').checked = currentConfig.sunny_deploy_enabled;
-  el('cfg-sunny-lux').value = currentConfig.sunny_lux_threshold;
-  el('cfg-sunny-wind').value = currentConfig.sunny_wind_max_mph;
-  el('cfg-deploy-dur').value = currentConfig.deploy_duration_s;
-  el('cfg-deploy-dwell').value = currentConfig.sunny_deploy_dwell_s;
-  // min_temp_c display set by updateTempUnitUI below
 
   const ai = currentConfig.ai || {};
   el('cfg-ai-enabled').checked = !!ai.ai_enabled;
@@ -321,17 +302,6 @@ async function saveCard(cardName) {
   } else if (cardName === 'wind') {
     currentConfig.wind_protection_enabled = el('cfg-wind-enabled').checked;
     currentConfig.max_wind_mph = parseFloat(el('cfg-max-wind').value);
-  } else if (cardName === 'sunny') {
-    currentConfig.sunny_deploy_enabled = el('cfg-sunny-enabled').checked;
-    currentConfig.sunny_lux_threshold = parseInt(el('cfg-sunny-lux').value, 10);
-    currentConfig.sunny_wind_max_mph = parseFloat(el('cfg-sunny-wind').value);
-    currentConfig.deploy_duration_s = parseInt(el('cfg-deploy-dur').value, 10);
-    // convert display unit input back to Celsius for storage
-    const inputVal = parseFloat(el('cfg-min-temp').value);
-    currentConfig.min_temp_c = (currentConfig.temp_unit || 'F') === 'C'
-      ? inputVal
-      : (inputVal - 32) * 5 / 9;
-    currentConfig.sunny_deploy_dwell_s = parseInt(el('cfg-deploy-dwell').value, 10);
   } else if (cardName === 'ai') {
     if (!currentConfig.ai) currentConfig.ai = {};
     currentConfig.ai.ai_enabled = el('cfg-ai-enabled').checked;
@@ -556,7 +526,7 @@ async function aiEvaluateNow() {
 }
 
 async function loadPrompts() {
-  for (const name of ['awning', 'timing']) {
+  for (const name of ['wind', 'rain', 'forecast', 'solar', 'coordinator', 'orchestrator']) {
     try {
       const resp = await fetch(`/ai/prompts/${name}`);
       if (resp.ok) {

@@ -93,60 +93,6 @@ def get_awning_status() -> str:
     return awning_client.current_state or "retracted"
 
 
-_HISTORY_WEATHER_FIELDS = {
-    "timestamp", "rain_prev_min_mm", "precip_type",
-    "wind_avg", "wind_gust", "illuminance_lux", "solar_radiation",
-}
-
-_FORECAST_WEATHER_FIELDS = {"dt", "pop", "wind_mph", "description"}
-
-
-def build_weather_context() -> str:
-    """Pre-fetch weather data and format it for injection into the AI prompt."""
-    import json as _json
-    from datetime import datetime, timezone
-
-    current = _json.loads(get_weather())
-    wind = _json.loads(get_wind())
-    history = _json.loads(get_weather_history(60))
-    forecast = _json.loads(get_forecast("hourly"))
-
-    lines = []
-
-    lines.append("CURRENT WEATHER")
-    lines.append("---------------")
-    for k, v in current.items():
-        if k != "air_temp_c":
-            lines.append(f"{k}: {v}")
-    lines.append("")
-
-    lines.append("CURRENT WIND")
-    lines.append("------------")
-    for k, v in wind.items():
-        lines.append(f"{k}: {v}")
-    lines.append("")
-
-    lines.append("RECENT HISTORY (last 60 min)")
-    lines.append("----------------------------")
-    for obs in history:
-        filtered = {k: v for k, v in obs.items() if k in _HISTORY_WEATHER_FIELDS}
-        lines.append(str(filtered))
-    lines.append("")
-
-    lines.append("FORECAST")
-    lines.append("--------")
-    for entry in forecast:
-        filtered = {k: v for k, v in entry.items() if k in _FORECAST_WEATHER_FIELDS}
-        try:
-            ts = datetime.fromtimestamp(filtered.get("dt", 0), tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-            filtered["time"] = ts
-        except Exception:
-            pass
-        lines.append(str(filtered))
-
-    return "\n".join(lines)
-
-
 def execute_tool(name: str, tool_input: dict) -> str:
     dispatch = {
         "get_weather": get_weather,

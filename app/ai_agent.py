@@ -9,17 +9,45 @@ import jinja2
 from anthropic import Anthropic
 from anthropic.types import Message
 
-from .ai_tools import action_tool_schemas, build_weather_context, execute_action_tool
 from .config import DATA_DIR, get_config
-from .log_store import log_store
+from .weather import weather_client
 
 logger = logging.getLogger(__name__)
+
+# Fields the worker prompts read directly off `weather_client.latest_obs`.
+# An evaluation run on an observation missing any of these would feed the
+# workers placeholder values (e.g. "Temperature: None°C"), so we wait for a
+# complete reading before spending tokens on an evaluation.
+REQUIRED_OBS_FIELDS = (
+    "air_temp_c",
+    "wind_avg_m_s",
+    "precip_type",
+    "rain_prev_min_mm",
+    "illuminance_lux",
+    "uv_index",
+)
+
+INCOMPLETE_OBS_RETRY_S = 30
+
+
+def _missing_obs_fields() -> list:
+    obs = weather_client.latest_obs
+    if not obs:
+        return list(REQUIRED_OBS_FIELDS)
+    return [name for name in REQUIRED_OBS_FIELDS if obs.get(name) is None]
 
 PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
 DATA_PROMPTS_DIR = DATA_DIR / "prompts"
 
-VALID_PROMPT_NAMES = {"awning", "timing"}
-_PROMPT_FILE = {"awning": "awning_agent.md.j2", "timing": "eval_timing_agent.md.j2"}
+VALID_PROMPT_NAMES = {"wind", "rain", "forecast", "solar", "coordinator", "orchestrator"}
+_PROMPT_FILE = {
+    "wind": "wind_worker.md.j2",
+    "rain": "rain_worker.md.j2",
+    "forecast": "forecast_worker.md.j2",
+    "solar": "solar_worker.md.j2",
+    "coordinator": "coordinator.md.j2",
+    "orchestrator": "orchestrator.md.j2",
+}
 
 _jinja_env = jinja2.Environment(
     loader=jinja2.BaseLoader(),
@@ -57,26 +85,8 @@ def _require_env(name: str) -> str:
     return value
 
 
-def _settings_table(cfg) -> str:
-    lines = ["| Setting | Value |", "|---------|-------|"]
-    lines += [f"| {k} | {v} |" for k, v in cfg.model_dump().items()]
-    return "\n".join(lines)
-
-
-def _build_awning_system_blocks(cfg) -> list:
-    text = _jinja_env.from_string(load_prompt("awning")).render(
-        settings_table=_settings_table(cfg),
-        **cfg.model_dump(),
-    )
-    return [{"type": "text", "text": text, "cache_control": {"type": "ephemeral"}}]
-
-
-def _build_eval_timing_system_blocks(cfg) -> list:
-    text = _jinja_env.from_string(load_prompt("timing")).render(
-        earliest_auto_deployment=cfg.earliest_auto_deployment,
-        latest_auto_deployment=cfg.latest_auto_deployment,
-        min_eval_interval_seconds=cfg.min_eval_interval_seconds,
-    )
+def _build_system_blocks(name: str, cfg, **extra_vars) -> list:
+    text = _jinja_env.from_string(load_prompt(name)).render(**cfg.model_dump(), **extra_vars)
     return [{"type": "text", "text": text, "cache_control": {"type": "ephemeral"}}]
 
 
@@ -127,66 +137,6 @@ class _Claude:
             with self.client.messages.stream(**params) as stream:
                 return stream.get_final_message()
         return self.client.messages.create(**params)
-
-
-def _run_awning_agent(cfg) -> dict:
-    model = os.getenv("CLAUDE_MODEL", "claude-haiku-4-5")
-    system_blocks = _build_awning_system_blocks(cfg)
-    chat = _Claude(model=model)
-    messages = []
-    weather_context = build_weather_context()
-    chat.add_user_message(
-        messages,
-        f"{weather_context}\n\nDetermine if the patio awning should be extended or retracted.",
-    )
-
-    while True:
-        response = chat.chat(
-            messages,
-            system_blocks=system_blocks,
-            temperature=0,
-            tools=action_tool_schemas,
-            streaming=True,
-        )
-        chat.add_assistant_message(messages, response)
-
-        if response.stop_reason == "end_turn":
-            evaluation_text = chat.text_from_message(response)
-            try:
-                next_eval_seconds = int(_get_next_eval_seconds(evaluation_text, cfg))
-            except Exception as exc:
-                logger.warning("Timing agent failed, using default interval: %s", exc)
-                next_eval_seconds = cfg.min_eval_interval_seconds
-            return {
-                "evaluation_text": evaluation_text,
-                "next_eval_seconds": next_eval_seconds,
-            }
-
-        tool_results = []
-        for block in response.content:
-            if block.type == "tool_use":
-                result = execute_action_tool(block.name, block.input)
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": result,
-                })
-        messages.append({"role": "user", "content": tool_results})
-
-
-def _get_next_eval_seconds(assessment: str, cfg) -> str:
-    model = os.getenv("CLAUDE_MODEL", "claude-haiku-4-5")
-    system_blocks = _build_eval_timing_system_blocks(cfg)
-    chat = _Claude(model=model)
-    messages = []
-    chat.add_user_message(messages, assessment)
-    response = chat.chat(messages, system_blocks=system_blocks, temperature=0)
-    raw = next((b.text for b in response.content if b.type == "text"), "300")
-    try:
-        seconds = int(raw.strip())
-    except ValueError:
-        seconds = 300
-    return str(max(seconds, cfg.min_eval_interval_seconds))
 
 
 class AIEngine:
@@ -249,9 +199,24 @@ class AIEngine:
                     pass
                 continue
 
+            missing = _missing_obs_fields()
+            if missing:
+                logger.info(
+                    "Skipping AI evaluation — incomplete weather reading (missing: %s)",
+                    ", ".join(missing),
+                )
+                self._last_eval_text = (
+                    f"Evaluation skipped — incomplete weather reading (missing: {', '.join(missing)})"
+                )
+                self._last_eval_at = datetime.now(timezone.utc)
+                self._next_eval_at = self._last_eval_at + timedelta(seconds=INCOMPLETE_OBS_RETRY_S)
+                continue
+
             self._is_running = True
             try:
-                result = await asyncio.to_thread(_run_awning_agent, cfg.ai)
+                from .ai_pipeline import run_ai_pipeline  # lazy import — avoids ai_agent <-> ai_pipeline cycle
+
+                result = await asyncio.to_thread(run_ai_pipeline, cfg.ai)
                 if get_config().ai.ai_enabled:
                     self._last_eval_text = result["evaluation_text"]
                     self._last_eval_at = datetime.now(timezone.utc)
