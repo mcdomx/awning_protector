@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pipenv install*)",
+      "Bash(pipenv run pytest*)",
+      "Bash(pipenv run python*)",
+      "Bash(docker compose*)",
+      "Bash(find . *)",
+      "Bash(ls *)",
+      "Bash(pipenv install *)",
+      "Bash(git checkout *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(git merge *)",
+      "Bash(git branch *)",
+      "Bash(python3 -m json.tool)",
+      "Bash(python3 -c ' *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "agent",
+            "prompt": "The user is about to run a git commit. Before the commit proceeds: (1) read README.md and CLAUDE.md in the project root, (2) read the staged diff via 'git diff --staged' to understand what changed, (3) update README.md and CLAUDE.md to accurately reflect any new features, changed architecture, new files, or updated behavior, (4) stage the updated files with 'git add README.md CLAUDE.md'. Only update sections actually affected by the staged changes. Skip if the docs are already current.",
+            "if": "Bash(git commit*)",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}
