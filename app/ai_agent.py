@@ -9,7 +9,7 @@ import jinja2
 from anthropic import Anthropic
 from anthropic.types import Message
 
-from .config import DATA_DIR, get_config
+from .config import get_config
 from .weather import weather_client
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,6 @@ def _missing_obs_fields() -> list:
     return [name for name in REQUIRED_OBS_FIELDS if obs.get(name) is None]
 
 PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
-DATA_PROMPTS_DIR = DATA_DIR / "prompts"
 
 VALID_PROMPT_NAMES = {"wind", "rain", "forecast", "solar", "coordinator", "orchestrator"}
 _PROMPT_FILE = {
@@ -58,15 +57,11 @@ _jinja_env = jinja2.Environment(
 
 
 def load_prompt(name: str) -> str:
-    user_path = DATA_PROMPTS_DIR / _PROMPT_FILE[name]
-    if user_path.exists():
-        return user_path.read_text()
     return (PROMPTS_DIR / _PROMPT_FILE[name]).read_text()
 
 
 def save_prompt(name: str, content: str) -> None:
-    DATA_PROMPTS_DIR.mkdir(parents=True, exist_ok=True)
-    (DATA_PROMPTS_DIR / _PROMPT_FILE[name]).write_text(content)
+    (PROMPTS_DIR / _PROMPT_FILE[name]).write_text(content)
 
 
 def _require_env(name: str) -> str:
