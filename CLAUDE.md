@@ -20,6 +20,7 @@ app/
   ai_agent.py    # AIEngine — event-driven scheduling loop; _Claude wrapper; prompt load/save
   ai_pipeline.py # Worker/coordinator/orchestrator multi-agent pipeline (run_ai_pipeline)
   ai_tools.py    # Tool implementations for the AI agent (weather, awning, logging)
+  git_sync.py    # GitHubPromptSync — auto-pull from GitHub + push-to-GitHub via REST API
   config.py      # Settings load/save (data/config.json); includes AIConfig
   log_store.py   # In-memory automation and weather log ring buffers
 prompts/
@@ -62,6 +63,8 @@ main.py          # uvicorn entry point (port 8767)
 | GET | `/ai/prompts/{name}` | Retrieve prompt template (`wind`, `rain`, `forecast`, `solar`, `coordinator`, `orchestrator`) |
 | PUT | `/ai/prompts/{name}` | Update and persist prompt template |
 | POST | `/ai/evaluate` | Trigger an immediate AI evaluation |
+| GET | `/ai/git-status` | Prompt sync state (`has_local_overrides`, `last_pull_at`, `last_push_at`, `github_token_set`) |
+| POST | `/ai/git-push` | Push `data/prompts/` overrides to GitHub, then remove overrides |
 
 ## Automation Rules (priority order)
 1. Weather data stale > 120s → undeploy (resumes when data returns)

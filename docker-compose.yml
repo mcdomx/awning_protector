@@ -7,6 +7,7 @@ services:
     env_file: .env
     volumes:
       - ./data:/app/data
+      - ./prompts:/app/prompts
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped

@@ -193,6 +193,8 @@ label { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; cu
 .btn-stop { background: var(--yellow); color: #000; }
 .btn-undeploy { background: var(--red); color: #fff; }
 .btn-save { background: var(--accent); color: #000; align-self: flex-start; margin-top: 0.25rem; }
+.btn-secondary { background: var(--border); color: var(--text); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .muted { color: var(--muted); font-size: 0.8rem; }
 

@@ -255,6 +255,11 @@
 
         <hr class="card-divider" />
 
+        <div class="field-row" style="align-items:center;gap:0.75rem">
+          <button class="btn btn-secondary" onclick="pushPromptsToGit()" id="git-push-btn" disabled>Push Prompts to Git</button>
+          <span id="git-push-status" class="muted"></span>
+        </div>
+
         <details class="ai-prompt-details">
           <summary>Edit Wind Worker Prompt</summary>
           <textarea id="cfg-ai-prompt-wind" class="ai-prompt-textarea" rows="10" spellcheck="false"></textarea>
