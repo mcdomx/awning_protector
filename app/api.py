@@ -32,8 +32,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await weather_client.start()
     asyncio.create_task(automation_engine.run())
     asyncio.create_task(ai_engine.run())
-    asyncio.create_task(git_sync.initial_pull())
-    asyncio.create_task(git_sync.run())
     yield
 
 

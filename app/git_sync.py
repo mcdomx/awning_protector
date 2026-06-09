@@ -1,4 +1,3 @@
-import asyncio
 import base64
 import hashlib
 import logging
@@ -16,7 +15,6 @@ logger = logging.getLogger(__name__)
 GITHUB_REPO = os.getenv("GITHUB_REPO", "mcdomx/awning_protector")
 GITHUB_BRANCH = os.getenv("GITHUB_BRANCH", "main")
 GIT_TOKEN = os.getenv("GIT_TOKEN", "")
-GIT_POLL_INTERVAL_S = int(os.getenv("GIT_POLL_INTERVAL_S", "300"))
 
 
 def _git_blob_sha(content: str) -> str:
@@ -153,21 +151,6 @@ class GitHubPromptSync:
             "last_push_at": self._last_push_at,
             "github_token_set": bool(GIT_TOKEN),
         }
-
-    async def initial_pull(self) -> None:
-        try:
-            await self.pull_if_changed()
-        except Exception as exc:
-            logger.warning("Initial prompt pull failed: %s", exc)
-
-    async def run(self) -> None:
-        """Background loop — auto-pull prompts when GitHub has new commits."""
-        while True:
-            await asyncio.sleep(GIT_POLL_INTERVAL_S)
-            try:
-                await self.pull_if_changed()
-            except Exception as exc:
-                logger.warning("Git sync poll failed: %s", exc)
 
 
 git_sync = GitHubPromptSync()
