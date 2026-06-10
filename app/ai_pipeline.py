@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple
@@ -10,9 +11,24 @@ from .ai_agent import _Claude, _build_system_blocks
 from .ai_tools import action_tool_schemas, execute_action_tool, get_weather_history
 from .automation import MPH_PER_MS
 from .awning import awning_client
+from .error_report import (
+    DEPENDENCY_UNAVAILABLE,
+    MAX_RETRIES_EXCEEDED,
+    PARSE_ERROR,
+    TOOL_NOT_FOUND,
+    VALIDATION_FAILED,
+    emit_error_report,
+)
 from .weather import weather_client
 
 _C_TO_F = lambda c: round(c * 9 / 5 + 32, 1)
+
+# Upper bound on orchestrator tool-use iterations before we give up on a run.
+MAX_TOOL_ITERATIONS = 8
+
+# Tools that change physical/awning state — a failure after dispatching one is not
+# safely retry-eligible because it may have partially taken effect.
+_SIDE_EFFECTING_TOOLS = {"deploy_awning", "retract_awning"}
 
 # The awning's physical location (and the earliest/latest_auto_deployment clock
 # strings such as "8AM"/"6PM" in AIConfig) are local US/Eastern time, while the
@@ -54,20 +70,68 @@ def _skipped_worker(name: str, reason: str) -> WorkerResult:
     return WorkerResult(name, {"skipped": True, "reason": reason}, "")
 
 
-def _gather_pipeline_context() -> Dict[str, Any]:
-    history = json.loads(get_weather_history(minutes=60))
-    return {
-        "current_obs": weather_client.latest_obs,
-        "history": history,
-        "forecast": weather_client.forecast,
-        "awning_state": awning_client.current_state,
-        "current_time": datetime.now(_LOCAL_TZ).strftime("%-I:%M %p %Z, %a %b %d"),
-    }
+def _gather_pipeline_context(task_id: str) -> Dict[str, Any]:
+    try:
+        history = json.loads(get_weather_history(minutes=60))
+        return {
+            "current_obs": weather_client.latest_obs,
+            "history": history,
+            "forecast": weather_client.forecast,
+            "awning_state": awning_client.current_state,
+            "current_time": datetime.now(_LOCAL_TZ).strftime("%-I:%M %p %Z, %a %b %d"),
+        }
+    except Exception as exc:
+        emit_error_report(
+            error_code=DEPENDENCY_UNAVAILABLE,
+            message=f"Failed to gather pipeline context (weather data): {exc}",
+            task_id=task_id,
+            agent_id="pipeline-context",
+            input_snapshot={},
+            retry_eligible=True,
+            suggested_action="retry",
+        )
+        raise
+
+
+def _run_worker(
+    name: str, user_msg: str, claude: _Claude, system_blocks: list, task_id: str
+) -> WorkerResult:
+    """Shared worker body: call Claude, parse the JSON assessment, and emit a
+    structured error report on an API failure or an invalid/missing assessment."""
+    msgs = []
+    claude.add_user_message(msgs, user_msg)
+    try:
+        resp = claude.chat(msgs, system_blocks=system_blocks, temperature=0)
+    except Exception as exc:
+        emit_error_report(
+            error_code=DEPENDENCY_UNAVAILABLE,
+            message=f"Claude API call failed for {name} worker: {exc}",
+            task_id=task_id,
+            agent_id=f"{name}-worker",
+            input_snapshot={"user_msg": user_msg, "model": claude.model},
+            retry_eligible=True,
+            suggested_action="retry",
+        )
+        raise
+
+    raw = claude.text_from_message(resp)
+    assessment, err = _parse_json(raw, name)
+    if err or "risk" not in assessment:
+        emit_error_report(
+            error_code=PARSE_ERROR if err else VALIDATION_FAILED,
+            message=err or f"{name} worker response missing required 'risk' field",
+            task_id=task_id,
+            agent_id=f"{name}-worker",
+            input_snapshot={"raw_response": raw},
+            retry_eligible=True,
+            suggested_action="retry",
+        )
+    return WorkerResult(name, assessment, raw, err)
 
 
 # ── Worker functions ──────────────────────────────────────────────────────────
 
-def run_wind_worker(ctx: Dict, claude: _Claude, system_blocks: list) -> WorkerResult:
+def run_wind_worker(ctx: Dict, claude: _Claude, system_blocks: list, task_id: str) -> WorkerResult:
     obs = ctx["current_obs"]
     wind_mph = round(obs.get("wind_avg_m_s", 0.0) * MPH_PER_MS, 2)
     history = ctx.get("history", [])
@@ -80,15 +144,10 @@ def run_wind_worker(ctx: Dict, claude: _Claude, system_blocks: list) -> WorkerRe
         lines.append(f"  {ts}  {w} mph")
     user_msg = "\n".join(lines)
 
-    msgs = []
-    claude.add_user_message(msgs, user_msg)
-    resp = claude.chat(msgs, system_blocks=system_blocks, temperature=0)
-    raw = claude.text_from_message(resp)
-    assessment, err = _parse_json(raw, "wind")
-    return WorkerResult("wind", assessment, raw, err)
+    return _run_worker("wind", user_msg, claude, system_blocks, task_id)
 
 
-def run_rain_worker(ctx: Dict, claude: _Claude, system_blocks: list) -> WorkerResult:
+def run_rain_worker(ctx: Dict, claude: _Claude, system_blocks: list, task_id: str) -> WorkerResult:
     obs = ctx["current_obs"]
     history = ctx.get("history", [])
 
@@ -105,15 +164,10 @@ def run_rain_worker(ctx: Dict, claude: _Claude, system_blocks: list) -> WorkerRe
         lines.append(f"  {ts}  precip_type={pt}  rain={rm} mm")
     user_msg = "\n".join(lines)
 
-    msgs = []
-    claude.add_user_message(msgs, user_msg)
-    resp = claude.chat(msgs, system_blocks=system_blocks, temperature=0)
-    raw = claude.text_from_message(resp)
-    assessment, err = _parse_json(raw, "rain")
-    return WorkerResult("rain", assessment, raw, err)
+    return _run_worker("rain", user_msg, claude, system_blocks, task_id)
 
 
-def run_forecast_worker(ctx: Dict, claude: _Claude, system_blocks: list) -> WorkerResult:
+def run_forecast_worker(ctx: Dict, claude: _Claude, system_blocks: list, task_id: str) -> WorkerResult:
     forecast = ctx.get("forecast", [])
 
     lines = [f"Current time: {ctx['current_time']}", "", "Forecast (hourly, starting ~1h from now):"]
@@ -129,15 +183,10 @@ def run_forecast_worker(ctx: Dict, claude: _Claude, system_blocks: list) -> Work
         lines.append(f"  {ts}  {desc}  rain_prob={pop:.0%}  wind={w}mph  temp={tc}C")
     user_msg = "\n".join(lines)
 
-    msgs = []
-    claude.add_user_message(msgs, user_msg)
-    resp = claude.chat(msgs, system_blocks=system_blocks, temperature=0)
-    raw = claude.text_from_message(resp)
-    assessment, err = _parse_json(raw, "forecast")
-    return WorkerResult("forecast", assessment, raw, err)
+    return _run_worker("forecast", user_msg, claude, system_blocks, task_id)
 
 
-def run_solar_worker(ctx: Dict, claude: _Claude, system_blocks: list) -> WorkerResult:
+def run_solar_worker(ctx: Dict, claude: _Claude, system_blocks: list, task_id: str) -> WorkerResult:
     obs = ctx["current_obs"]
     temp_f = _C_TO_F(obs.get("air_temp_c", 0.0))
     user_msg = "\n".join([
@@ -147,12 +196,7 @@ def run_solar_worker(ctx: Dict, claude: _Claude, system_blocks: list) -> WorkerR
         f"UV index      : {obs.get('uv_index')}",
     ])
 
-    msgs = []
-    claude.add_user_message(msgs, user_msg)
-    resp = claude.chat(msgs, system_blocks=system_blocks, temperature=0)
-    raw = claude.text_from_message(resp)
-    assessment, err = _parse_json(raw, "solar")
-    return WorkerResult("solar", assessment, raw, err)
+    return _run_worker("solar", user_msg, claude, system_blocks, task_id)
 
 
 # ── Coordinator ───────────────────────────────────────────────────────────────
@@ -160,7 +204,7 @@ def run_solar_worker(ctx: Dict, claude: _Claude, system_blocks: list) -> WorkerR
 def run_coordinator(
     wind: WorkerResult, rain: WorkerResult,
     forecast: WorkerResult, solar: WorkerResult,
-    ctx: Dict, claude: _Claude, system_blocks: list,
+    ctx: Dict, claude: _Claude, system_blocks: list, task_id: str,
 ) -> str:
     user_msg = "\n".join([
         f"AWNING STATE : {ctx['awning_state']}",
@@ -180,24 +224,49 @@ def run_coordinator(
     ])
     msgs = []
     claude.add_user_message(msgs, user_msg)
-    resp = claude.chat(msgs, system_blocks=system_blocks, temperature=0)
+    try:
+        resp = claude.chat(msgs, system_blocks=system_blocks, temperature=0)
+    except Exception as exc:
+        emit_error_report(
+            error_code=DEPENDENCY_UNAVAILABLE,
+            message=f"Claude API call failed in coordinator: {exc}",
+            task_id=task_id,
+            agent_id="coordinator",
+            input_snapshot={"user_msg": user_msg, "model": claude.model},
+            retry_eligible=True,
+            suggested_action="retry",
+        )
+        raise
     return claude.text_from_message(resp)
 
 
 # ── Orchestrator ──────────────────────────────────────────────────────────────
 
-def run_orchestrator(brief: str, claude: _Claude, system_blocks: list) -> str:
+def run_orchestrator(brief: str, claude: _Claude, system_blocks: list, task_id: str) -> str:
     msgs = []
     claude.add_user_message(msgs, brief)
 
-    while True:
-        resp = claude.chat(
-            msgs,
-            system_blocks=system_blocks,
-            temperature=0,
-            tools=action_tool_schemas,
-            streaming=True,
-        )
+    resp = None
+    for _ in range(MAX_TOOL_ITERATIONS):
+        try:
+            resp = claude.chat(
+                msgs,
+                system_blocks=system_blocks,
+                temperature=0,
+                tools=action_tool_schemas,
+                streaming=True,
+            )
+        except Exception as exc:
+            emit_error_report(
+                error_code=DEPENDENCY_UNAVAILABLE,
+                message=f"Claude API call failed in orchestrator: {exc}",
+                task_id=task_id,
+                agent_id="orchestrator",
+                input_snapshot={"brief": brief, "model": claude.model},
+                retry_eligible=True,
+                suggested_action="retry",
+            )
+            raise
         claude.add_assistant_message(msgs, resp)
 
         if resp.stop_reason == "end_turn":
@@ -206,7 +275,20 @@ def run_orchestrator(brief: str, claude: _Claude, system_blocks: list) -> str:
         tool_results = []
         for block in resp.content:
             if block.type == "tool_use":
-                result = execute_action_tool(block.name, block.input)
+                try:
+                    result = execute_action_tool(block.name, block.input)
+                except Exception as exc:
+                    side_effecting = block.name in _SIDE_EFFECTING_TOOLS
+                    emit_error_report(
+                        error_code=TOOL_NOT_FOUND if isinstance(exc, ValueError) else DEPENDENCY_UNAVAILABLE,
+                        message=f"Action tool '{block.name}' failed: {exc}",
+                        task_id=task_id,
+                        agent_id=f"tool:{block.name}",
+                        input_snapshot=dict(block.input),
+                        retry_eligible=not side_effecting,
+                        suggested_action="escalate" if side_effecting else "retry",
+                    )
+                    result = f"ERROR: tool '{block.name}' failed: {exc}"
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,
@@ -216,13 +298,25 @@ def run_orchestrator(brief: str, claude: _Claude, system_blocks: list) -> str:
             return claude.text_from_message(resp)
         msgs.append({"role": "user", "content": tool_results})
 
+    emit_error_report(
+        error_code=MAX_RETRIES_EXCEEDED,
+        message=f"Orchestrator exceeded {MAX_TOOL_ITERATIONS} tool iterations without completing.",
+        task_id=task_id,
+        agent_id="orchestrator",
+        input_snapshot={"brief": brief},
+        retry_eligible=False,
+        suggested_action="escalate",
+    )
+    return claude.text_from_message(resp)
+
 
 # ── Pipeline entry point ──────────────────────────────────────────────────────
 
 def run_ai_pipeline(cfg) -> dict:
+    task_id = uuid.uuid4().hex
     model = os.getenv("CLAUDE_MODEL", "claude-haiku-4-5")
     claude = _Claude(model=model)
-    ctx = _gather_pipeline_context()
+    ctx = _gather_pipeline_context(task_id)
 
     wind_blocks = _build_system_blocks("wind", cfg)
     rain_blocks = _build_system_blocks("rain", cfg)
@@ -231,8 +325,8 @@ def run_ai_pipeline(cfg) -> dict:
     coordinator_blocks = _build_system_blocks("coordinator", cfg)
     orchestrator_blocks = _build_system_blocks("orchestrator", cfg)
 
-    wind_r = run_wind_worker(ctx, claude, wind_blocks)
-    rain_r = run_rain_worker(ctx, claude, rain_blocks)
+    wind_r = run_wind_worker(ctx, claude, wind_blocks, task_id)
+    rain_r = run_rain_worker(ctx, claude, rain_blocks, task_id)
 
     fast_path = (
         wind_r.assessment.get("risk") in _RISKY
@@ -257,15 +351,25 @@ def run_ai_pipeline(cfg) -> dict:
             "Recommendation: retract immediately regardless of solar benefit.",
         ])
     else:
-        forecast_r = run_forecast_worker(ctx, claude, forecast_blocks)
-        solar_r = run_solar_worker(ctx, claude, solar_blocks)
+        forecast_r = run_forecast_worker(ctx, claude, forecast_blocks, task_id)
+        solar_r = run_solar_worker(ctx, claude, solar_blocks, task_id)
         brief = run_coordinator(
             wind_r, rain_r, forecast_r, solar_r,
-            ctx, claude, coordinator_blocks,
+            ctx, claude, coordinator_blocks, task_id,
         )
 
-    report = run_orchestrator(brief, claude, orchestrator_blocks)
+    report = run_orchestrator(brief, claude, orchestrator_blocks, task_id)
     next_eval_seconds = _parse_next_eval(report, cfg.min_eval_interval_seconds)
+    if not re.search(r"Next Eval In:\s*(\d+)", report, re.IGNORECASE):
+        emit_error_report(
+            error_code=VALIDATION_FAILED,
+            message="Orchestrator report missing 'Next Eval In:' line; using default interval.",
+            task_id=task_id,
+            agent_id="orchestrator",
+            input_snapshot={"report": report},
+            retry_eligible=True,
+            suggested_action="skip",
+        )
 
     return {
         "evaluation_text": report,

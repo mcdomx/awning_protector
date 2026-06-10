@@ -108,6 +108,20 @@ decision-making as a worker → coordinator → orchestrator pipeline (ported fr
 - All six prompt templates live in `prompts/` and can be overridden at runtime via `PUT /ai/prompts/{name}` (rendered with `_build_system_blocks`, a generic Jinja2 + prompt-cache system-block builder shared by every stage).
 - Requires `ANTHROPIC_API_KEY` in `.env`; model defaults to `claude-haiku-4-5` (override with `CLAUDE_MODEL`).
 
+### Structured error reporting (`app/error_report.py`)
+Failures in the pipeline (`app/ai_pipeline.py`) and action tools (`app/ai_tools.py`) emit a
+single-line JSON error report via `emit_error_report` to the logger — `{error_code, message,
+task_id, agent_id, input_snapshot, retry_eligible, suggested_action, occurred_at}` (shape per the
+global error-reporting rule; `input_snapshot` is sanitized: sensitive keys redacted, long strings
+truncated, binary omitted). A per-run `task_id` (uuid) is threaded through every stage; `agent_id`
+is the stage/tool name (`wind-worker`, `coordinator`, `orchestrator`, `tool:<name>`). Reported
+cases: worker Claude-API failures (`DEPENDENCY_UNAVAILABLE`, re-raised), worker JSON parse /
+missing-`risk` assessments (`PARSE_ERROR`/`VALIDATION_FAILED`, previously silent), coordinator/
+orchestrator API failures, orchestrator tool failures (fed back to the model as an `ERROR:` tool
+result instead of aborting the run), and the orchestrator tool loop exceeding `MAX_TOOL_ITERATIONS`
+(`MAX_RETRIES_EXCEEDED`). `deploy_awning`/`retract_awning` now `raise_for_status()` instead of
+reporting success on a non-OK awning-service response.
+
 ## Fail-Safe Mechanisms
 
 ### Weather data timeout (in-app)
