@@ -1,0 +1,10 @@
+.chart-container {
+  position: relative;
+  height: 72vh;
+  padding: 1rem 1.5rem;
+}
+
+.chart-note {
+  font-size: 0.78rem;
+  margin-left: auto;
+}

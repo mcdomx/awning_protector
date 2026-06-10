@@ -215,6 +215,11 @@ async def weather_log_page() -> HTMLResponse:
     return HTMLResponse((STATIC_DIR / "weather_log.html").read_text())
 
 
+@app.get("/charts", response_class=HTMLResponse)
+async def charts_page() -> HTMLResponse:
+    return HTMLResponse((STATIC_DIR / "charts.html").read_text())
+
+
 @app.get("/logs/automation", response_model=List[AutomationLogEntry])
 async def logs_automation() -> List[AutomationLogEntry]:
     return log_store.get_automation()
