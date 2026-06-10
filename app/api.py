@@ -11,6 +11,7 @@ import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 from .ai_agent import VALID_PROMPT_NAMES, ai_engine, load_prompt, save_prompt
 from .automation import automation_engine
@@ -165,6 +166,19 @@ async def ai_status() -> Dict[str, Any]:
         "last_eval_at": last_at.isoformat() if last_at else None,
         "next_eval_at": next_at.isoformat() if next_at else None,
     }
+
+
+class AIEnabledRequest(BaseModel):
+    enabled: bool
+
+
+@app.put("/ai/enabled")
+async def ai_set_enabled(body: AIEnabledRequest) -> Dict[str, Any]:
+    cfg = get_config()
+    cfg.ai.ai_enabled = body.enabled
+    save_config(cfg)
+    ai_engine.notify_config_changed()
+    return {"enabled": cfg.ai.ai_enabled}
 
 
 @app.get("/ai/prompts/{name}")
