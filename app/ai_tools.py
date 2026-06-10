@@ -29,8 +29,8 @@ def deploy_awning(seconds: int = 3) -> str:
         params={"seconds": seconds},
         timeout=30,
     )
-    if resp.ok:
-        awning_client.current_state = "deployed"
+    resp.raise_for_status()
+    awning_client.current_state = "deployed"
     return f"Deployed awning by {seconds} seconds."
 
 
@@ -41,12 +41,12 @@ def retract_awning(seconds: int = None) -> str:
             params={"seconds": seconds},
             timeout=30,
         )
-        if resp.ok:
-            awning_client.current_state = "undeployed"
+        resp.raise_for_status()
+        awning_client.current_state = "undeployed"
         return f"Retracted awning by {seconds} seconds."
     resp = requests.get(f"{AWNING_URL}/awning/undeploy", timeout=30)
-    if resp.ok:
-        awning_client.current_state = "undeployed"
+    resp.raise_for_status()
+    awning_client.current_state = "undeployed"
     return "Retracted awning."
 
 
