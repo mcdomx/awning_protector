@@ -243,8 +243,9 @@ function updateAwningStatus(data) {
   badge.className = 'badge ' + cls;
   if (ruleEl) ruleEl.textContent = data.active_rule || '';
   if (notice) {
-    notice.textContent = data.override_until
-      ? `Manual override until ${new Date(data.override_until).toLocaleTimeString()}`
+    const overrideUntil = data.override_until ? new Date(data.override_until) : null;
+    notice.textContent = (overrideUntil && overrideUntil > new Date())
+      ? `Manual override until ${overrideUntil.toLocaleTimeString()}`
       : '';
   }
 }
@@ -460,9 +461,13 @@ function tickAICountdown() {
   if (!_aiNextEvalAt) { countdownEl.textContent = '--'; return; }
   const diffMs = _aiNextEvalAt - Date.now();
   if (diffMs <= 0) { countdownEl.textContent = 'soon'; return; }
-  const mins = Math.floor(diffMs / 60000);
-  const secs = Math.floor((diffMs % 60000) / 1000);
-  countdownEl.textContent = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+  const total = Math.floor(diffMs / 1000);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const hms = [h, m, s].map(v => String(v).padStart(2, '0')).join(':');
+  const tod = _aiNextEvalAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  countdownEl.textContent = `${hms} (${tod})`;
 }
 
 async function refreshAIStatus() {
