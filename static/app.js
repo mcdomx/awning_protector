@@ -602,6 +602,111 @@ async function pushPromptsToGit() {
   }
 }
 
+/* --- AI Guidance --- */
+function _fmtTime(isoStr) {
+  return new Date(isoStr).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+function _setExpirySelects(isoStr) {
+  const d = new Date(isoStr);
+  const h24 = d.getHours();
+  const ampm = h24 < 12 ? 'AM' : 'PM';
+  const h12 = h24 % 12 || 12;
+  const min = d.getMinutes();
+  const hourEl = el('cfg-ai-guidance-expiry-hour');
+  const minEl = el('cfg-ai-guidance-expiry-min');
+  const ampmEl = el('cfg-ai-guidance-expiry-ampm');
+  if (hourEl) hourEl.value = String(h12);
+  if (minEl) minEl.value = String(min);
+  if (ampmEl) ampmEl.value = ampm;
+}
+
+function _clearExpirySelects() {
+  const hourEl = el('cfg-ai-guidance-expiry-hour');
+  const minEl = el('cfg-ai-guidance-expiry-min');
+  const ampmEl = el('cfg-ai-guidance-expiry-ampm');
+  if (hourEl) hourEl.value = '';
+  if (minEl) minEl.value = '';
+  if (ampmEl) ampmEl.value = '';
+}
+
+function updateGuidanceUI(data) {
+  const statusEl = el('ai-guidance-status');
+  const clearBtn = el('ai-clear-guidance-btn');
+  if (!data || !data.text) {
+    if (statusEl) statusEl.textContent = 'No guidance active.';
+    if (clearBtn) clearBtn.disabled = true;
+    return;
+  }
+  if (clearBtn) clearBtn.disabled = false;
+  const textEl = el('cfg-ai-guidance-text');
+  if (textEl && !textEl.value) textEl.value = data.text;
+  if (data.expires_at) _setExpirySelects(data.expires_at);
+  if (data.active) {
+    const expStr = data.expires_at ? ` · Expires ${_fmtTime(data.expires_at)}` : ' · No expiry';
+    if (statusEl) statusEl.textContent = 'Active' + expStr;
+  } else {
+    const expStr = data.expires_at ? ` (expired ${_fmtTime(data.expires_at)})` : '';
+    if (statusEl) statusEl.textContent = 'Guidance set but expired' + expStr;
+  }
+}
+
+async function loadGuidance() {
+  const resp = await fetch('/ai/guidance');
+  if (!resp.ok) return;
+  updateGuidanceUI(await resp.json());
+}
+
+async function saveGuidance() {
+  const textEl = el('cfg-ai-guidance-text');
+  const status = el('save-status-guidance');
+  if (!textEl || !textEl.value.trim()) {
+    if (status) { status.textContent = 'Enter guidance text first.'; setTimeout(() => { status.textContent = ''; }, 2500); }
+    return;
+  }
+  const body = { text: textEl.value.trim() };
+  const hourVal = el('cfg-ai-guidance-expiry-hour').value;
+  const minVal = el('cfg-ai-guidance-expiry-min').value;
+  const ampmVal = el('cfg-ai-guidance-expiry-ampm').value;
+  if (hourVal && minVal !== '' && ampmVal) {
+    let h = parseInt(hourVal, 10);
+    if (ampmVal === 'PM' && h !== 12) h += 12;
+    if (ampmVal === 'AM' && h === 12) h = 0;
+    const d = new Date();
+    d.setHours(h, parseInt(minVal, 10), 0, 0);
+    body.expires_at = d.toISOString();
+  }
+  try {
+    const resp = await fetch('/ai/guidance', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (resp.ok) {
+      updateGuidanceUI(await resp.json());
+      if (status) { status.textContent = 'Saved'; setTimeout(() => { status.textContent = ''; }, 2000); }
+    } else {
+      if (status) status.textContent = 'Error saving';
+    }
+  } catch (e) {
+    if (status) status.textContent = 'Error saving';
+  }
+}
+
+async function clearGuidance() {
+  const textEl = el('cfg-ai-guidance-text');
+  const status = el('save-status-guidance');
+  try {
+    await fetch('/ai/guidance', { method: 'DELETE' });
+    if (textEl) textEl.value = '';
+    _clearExpirySelects();
+    updateGuidanceUI({ active: false, text: null, expires_at: null });
+    if (status) { status.textContent = 'Cleared'; setTimeout(() => { status.textContent = ''; }, 2000); }
+  } catch (e) {
+    if (status) status.textContent = 'Error clearing';
+  }
+}
+
 setInterval(refreshAIStatus, 30000);
 setInterval(tickAICountdown, 1000);
 setInterval(checkGitStatus, 60000);
@@ -616,5 +721,6 @@ setInterval(checkGitStatus, 60000);
   try { await refreshAIStatus(); } catch (e) { console.error('refreshAIStatus failed', e); }
   try { await loadPrompts(); } catch (e) { console.error('loadPrompts failed', e); }
   try { await checkGitStatus(); } catch (e) { console.error('checkGitStatus failed', e); }
+  try { await loadGuidance(); } catch (e) { console.error('loadGuidance failed', e); }
   connectSSE();
 })();

@@ -1,5 +1,6 @@
 import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -58,3 +59,52 @@ def get_config() -> AutomationConfig:
     if _config is None:
         return load_config()
     return _config
+
+
+GUIDANCE_PATH = DATA_DIR / "guidance.json"
+
+
+class UserGuidance(BaseModel):
+    text: str
+    expires_at: Optional[datetime] = None
+
+
+_guidance: Optional[UserGuidance] = None
+
+
+def load_guidance() -> Optional[UserGuidance]:
+    global _guidance
+    if GUIDANCE_PATH.exists():
+        with open(GUIDANCE_PATH) as f:
+            _guidance = UserGuidance(**json.load(f))
+    else:
+        _guidance = None
+    return _guidance
+
+
+def save_guidance(g: UserGuidance) -> None:
+    global _guidance
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    with open(GUIDANCE_PATH, "w") as f:
+        json.dump(g.model_dump(mode="json"), f, indent=2)
+    _guidance = g
+
+
+def clear_guidance() -> None:
+    global _guidance
+    _guidance = None
+    if GUIDANCE_PATH.exists():
+        GUIDANCE_PATH.unlink()
+
+
+def get_active_guidance_text() -> Optional[str]:
+    global _guidance
+    if _guidance is None:
+        load_guidance()
+    if _guidance is None or not _guidance.text:
+        return None
+    if _guidance.expires_at:
+        tz = _guidance.expires_at.tzinfo or timezone.utc
+        if datetime.now(tz) > _guidance.expires_at:
+            return None
+    return _guidance.text
