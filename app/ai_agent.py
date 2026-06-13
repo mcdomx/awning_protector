@@ -4,6 +4,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 import jinja2
 from anthropic import Anthropic
@@ -11,6 +12,8 @@ from anthropic.types import Message
 
 from .config import get_config
 from .weather import weather_client
+
+_LOCAL_TZ = ZoneInfo("America/New_York")
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +38,31 @@ def _missing_obs_fields() -> list:
     if not obs:
         return list(REQUIRED_OBS_FIELDS)
     return [name for name in REQUIRED_OBS_FIELDS if obs.get(name) is None]
+
+def _parse_deploy_hour(time_str: str) -> int:
+    """Parse '8AM' or '6PM' to a 24-hour integer (0–23)."""
+    return datetime.strptime(time_str.strip().upper(), "%I%p").hour
+
+
+def _within_deploy_window(
+    earliest_str: str, latest_str: str, now: Optional[datetime] = None
+) -> bool:
+    if now is None:
+        now = datetime.now(_LOCAL_TZ)
+    h = now.hour
+    return _parse_deploy_hour(earliest_str) <= h < _parse_deploy_hour(latest_str)
+
+
+def _next_window_open_at(earliest_str: str, now: Optional[datetime] = None) -> datetime:
+    """Return the next UTC datetime when the deploy window opens."""
+    if now is None:
+        now = datetime.now(_LOCAL_TZ)
+    earliest_h = _parse_deploy_hour(earliest_str)
+    candidate = now.replace(hour=earliest_h, minute=0, second=0, microsecond=0)
+    if candidate > now:
+        return candidate.astimezone(timezone.utc)
+    return (candidate + timedelta(days=1)).astimezone(timezone.utc)
+
 
 PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
 
@@ -192,6 +220,27 @@ class AIEngine:
                     await asyncio.wait_for(self._wakeup.wait(), timeout=sleep_secs)
                 except asyncio.TimeoutError:
                     pass
+                continue
+
+            ai_cfg = cfg.ai
+            now_local = datetime.now(_LOCAL_TZ)
+            if not _within_deploy_window(
+                ai_cfg.earliest_auto_deployment, ai_cfg.latest_auto_deployment, now=now_local
+            ):
+                next_open = _next_window_open_at(ai_cfg.earliest_auto_deployment, now=now_local)
+                self._last_eval_text = (
+                    f"Outside deployment window "
+                    f"({ai_cfg.earliest_auto_deployment}–{ai_cfg.latest_auto_deployment}). "
+                    f"Next evaluation at {ai_cfg.earliest_auto_deployment}."
+                )
+                self._last_eval_at = datetime.now(timezone.utc)
+                self._next_eval_at = next_open
+                logger.info(
+                    "Outside deploy window (%s–%s); next eval at %s",
+                    ai_cfg.earliest_auto_deployment,
+                    ai_cfg.latest_auto_deployment,
+                    next_open.isoformat(),
+                )
                 continue
 
             missing = _missing_obs_fields()
