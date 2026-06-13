@@ -3,9 +3,9 @@ import json
 import logging
 import os
 from contextlib import asynccontextmanager
-from datetime import timezone
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, AsyncIterator, Dict, List
+from typing import Any, AsyncIterator, Dict, List, Optional
 
 import httpx
 from fastapi import FastAPI, HTTPException
@@ -16,7 +16,10 @@ from pydantic import BaseModel
 from .ai_agent import VALID_PROMPT_NAMES, ai_engine, load_prompt, save_prompt
 from .automation import automation_engine
 from .awning import awning_client
-from .config import AutomationConfig, get_config, save_config
+from .config import (
+    AutomationConfig, get_config, save_config,
+    UserGuidance, load_guidance, save_guidance, clear_guidance, get_active_guidance_text,
+)
 from .git_sync import git_sync
 from .log_store import AutomationLogEntry, WeatherLogEntry, log_store
 from .weather import weather_client
@@ -165,6 +168,7 @@ async def ai_status() -> Dict[str, Any]:
         "last_eval_text": ai_engine.last_eval_text,
         "last_eval_at": last_at.isoformat() if last_at else None,
         "next_eval_at": next_at.isoformat() if next_at else None,
+        "active_guidance": get_active_guidance_text(),
     }
 
 
@@ -179,6 +183,46 @@ async def ai_set_enabled(body: AIEnabledRequest) -> Dict[str, Any]:
     save_config(cfg)
     ai_engine.notify_config_changed()
     return {"enabled": cfg.ai.ai_enabled}
+
+
+@app.get("/ai/guidance")
+async def ai_guidance_get() -> Dict[str, Any]:
+    raw = load_guidance()
+    if raw is None:
+        return {"active": False, "text": None, "expires_at": None}
+    is_active = get_active_guidance_text() is not None
+    return {
+        "active": is_active,
+        "text": raw.text,
+        "expires_at": raw.expires_at.isoformat() if raw.expires_at else None,
+    }
+
+
+class GuidanceRequest(BaseModel):
+    text: str
+    expires_at: Optional[str] = None
+
+
+@app.put("/ai/guidance")
+async def ai_guidance_put(body: GuidanceRequest) -> Dict[str, Any]:
+    expires = None
+    if body.expires_at:
+        expires = datetime.fromisoformat(body.expires_at.replace("Z", "+00:00"))
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+    g = UserGuidance(text=body.text.strip(), expires_at=expires)
+    save_guidance(g)
+    return {
+        "active": True,
+        "text": g.text,
+        "expires_at": g.expires_at.isoformat() if g.expires_at else None,
+    }
+
+
+@app.delete("/ai/guidance")
+async def ai_guidance_delete() -> Dict[str, Any]:
+    clear_guidance()
+    return {"active": False, "text": None, "expires_at": None}
 
 
 @app.get("/ai/prompts/{name}")

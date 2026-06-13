@@ -11,6 +11,7 @@ from .ai_agent import _Claude, _build_system_blocks
 from .ai_tools import action_tool_schemas, execute_action_tool, get_weather_history
 from .automation import MPH_PER_MS
 from .awning import awning_client
+from .config import get_active_guidance_text
 from .error_report import (
     DEPENDENCY_UNAVAILABLE,
     MAX_RETRIES_EXCEEDED,
@@ -324,6 +325,23 @@ def run_ai_pipeline(cfg) -> dict:
     solar_blocks = _build_system_blocks("solar", cfg)
     coordinator_blocks = _build_system_blocks("coordinator", cfg)
     orchestrator_blocks = _build_system_blocks("orchestrator", cfg)
+    user_guidance = get_active_guidance_text()
+    if user_guidance:
+        orchestrator_blocks.append({
+            "type": "text",
+            "text": (
+                "<user_guidance>\n"
+                "The following context has been provided by the user. It does not override "
+                "the hard rules above, but should inform your risk tolerance and evaluation "
+                "frequency within the space those rules allow:\n\n"
+                f"{user_guidance}\n"
+                "</user_guidance>\n\n"
+                "Because user guidance is active, add this line to your ORCHESTRATOR REPORT "
+                "(after Solar Benefit, before Primary Reason):\n"
+                "User Guidance:    <one sentence describing how the guidance influenced this decision>"
+            ),
+            "cache_control": {"type": "ephemeral"},
+        })
 
     wind_r = run_wind_worker(ctx, claude, wind_blocks, task_id)
     rain_r = run_rain_worker(ctx, claude, rain_blocks, task_id)

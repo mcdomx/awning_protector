@@ -208,6 +208,50 @@
       </div>
     </section>
 
+    <!-- AI Guidance card -->
+    <section class="card" id="config-ai-guidance">
+      <h2>AI Guidance</h2>
+      <div class="automation-card-body">
+        <p class="muted" style="margin:0 0 0.75rem;">Provide optional context to the AI orchestrator — e.g. "I'm home watching the awning, take more risks" or "Nobody home, be conservative." Leave blank for default behavior.</p>
+        <div id="ai-guidance-status" class="muted" style="margin-bottom:0.75rem;font-size:0.85rem;"></div>
+        <div class="field-row" style="flex-direction:column;align-items:stretch;gap:0.4rem;margin-bottom:0.75rem;">
+          <label for="cfg-ai-guidance-text" style="color:var(--muted);font-size:0.8rem;">Guidance text</label>
+          <textarea id="cfg-ai-guidance-text" rows="3"
+            style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:0.5rem;font-size:0.875rem;color:var(--text);resize:vertical;box-sizing:border-box;"
+            placeholder="e.g. I'm home watching the awning, take more risks than usual"></textarea>
+        </div>
+        <div class="field-row" style="margin-bottom:0.75rem;">
+          <label for="cfg-ai-guidance-expiry" style="color:var(--muted);">Expires at (optional)</label>
+          <div style="display:flex;align-items:center;gap:0.3rem;">
+            <select id="cfg-ai-guidance-expiry-hour" style="background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:0.3rem 0.4rem;font-size:0.875rem;">
+              <option value="">hh</option>
+              <option>1</option><option>2</option><option>3</option><option>4</option>
+              <option>5</option><option>6</option><option>7</option><option>8</option>
+              <option>9</option><option>10</option><option>11</option><option>12</option>
+            </select>
+            <span style="color:var(--muted);">:</span>
+            <select id="cfg-ai-guidance-expiry-min" style="background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:0.3rem 0.4rem;font-size:0.875rem;">
+              <option value="">mm</option>
+              <option value="0">00</option><option value="5">05</option><option value="10">10</option>
+              <option value="15">15</option><option value="20">20</option><option value="25">25</option>
+              <option value="30">30</option><option value="35">35</option><option value="40">40</option>
+              <option value="45">45</option><option value="50">50</option><option value="55">55</option>
+            </select>
+            <select id="cfg-ai-guidance-expiry-ampm" style="background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:0.3rem 0.4rem;font-size:0.875rem;">
+              <option value="">--</option>
+              <option>AM</option>
+              <option>PM</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+          <button class="btn btn-save" onclick="saveGuidance()">Set Guidance</button>
+          <button class="btn btn-secondary" onclick="clearGuidance()" id="ai-clear-guidance-btn">Clear</button>
+          <span id="save-status-guidance" class="muted" style="font-size:0.85rem;"></span>
+        </div>
+      </div>
+    </section>
+
     <!-- AI Settings card -->
     <section class="card" id="config-ai-settings">
       <h2>AI Settings</h2>
