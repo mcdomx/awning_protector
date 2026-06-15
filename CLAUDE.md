@@ -163,9 +163,6 @@ WEATHER_URL=http://host.docker.internal:8766
 AWNING_URL=http://host.docker.internal:8765
 APP_PORT=8767
 APP_URL=http://localhost:8767        # watchdog uses this; overridden in docker-compose
-OPENWEATHER_API_KEY=                 # optional — for rain forecast %
-LATITUDE=
-LONGITUDE=
 ANTHROPIC_API_KEY=                   # required for AI deploy mode
 CLAUDE_MODEL=claude-haiku-4-5        # optional — override Claude model for AI evaluations
 ```

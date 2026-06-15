@@ -10,9 +10,6 @@ import httpx
 logger = logging.getLogger(__name__)
 
 WEATHER_URL = os.getenv("WEATHER_URL", "http://localhost:8766")
-OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY", "")
-LATITUDE = os.getenv("LATITUDE", "")
-LONGITUDE = os.getenv("LONGITUDE", "")
 FORECAST_INTERVAL_S = 900  # 15 minutes
 
 
@@ -87,26 +84,22 @@ class WeatherClient:
             await asyncio.sleep(FORECAST_INTERVAL_S)
 
     async def _fetch_forecast(self) -> None:
-        if not (OPENWEATHER_API_KEY and LATITUDE and LONGITUDE):
-            return
-        url = (
-            "https://api.openweathermap.org/data/2.5/forecast"
-            f"?lat={LATITUDE}&lon={LONGITUDE}&appid={OPENWEATHER_API_KEY}&cnt=8&units=metric"
-        )
+        url = f"{WEATHER_URL}/weather/forecast/hourly"
         try:
             async with httpx.AsyncClient(timeout=10) as client:
                 resp = await client.get(url)
                 resp.raise_for_status()
-                data = resp.json()
+                entries = resp.json().get("forecast", [])
             self.forecast = [
                 {
-                    "dt": entry["dt"],
-                    "pop": entry.get("pop", 0.0),
-                    "description": entry["weather"][0]["description"] if entry.get("weather") else "",
-                    "wind_mph": round(entry.get("wind", {}).get("speed", 0.0) * 2.23694, 1),
-                    "temp_c": round(entry.get("main", {}).get("temp", 0.0), 1),
+                    "dt": int(datetime.fromisoformat(e["time"]).timestamp()),
+                    "pop": e.get("precip_probability", 0) / 100.0,
+                    "description": e.get("conditions", ""),
+                    "wind_mph": round(e.get("wind_avg", 0.0) * 2.23694, 1),
+                    "temp_c": round(e.get("air_temperature", 0.0), 1),
                 }
-                for entry in data.get("list", [])
+                for e in entries
+                if e.get("time")
             ]
             self.forecast_error = None
             self._last_forecast_fetch = datetime.now(timezone.utc)
