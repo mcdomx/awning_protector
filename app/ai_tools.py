@@ -71,13 +71,6 @@ def get_weather_history(minutes: int = 60) -> str:
     return json.dumps(obs["observations"])
 
 
-def get_forecast(period: str = "hourly") -> str:
-    if period not in ("hourly", "daily"):
-        return "The 'period' attribute value can only be 'hourly' or 'daily'"
-    obs = requests.get(f"{WEATHER_URL}/weather/forecast/{period}", timeout=10).json()
-    return json.dumps(obs["forecast"])
-
-
 def log_awning_action(action: str, reason: str) -> str:
     normalized = _normalize_action(action)
     log_store.add_automation(
@@ -98,7 +91,6 @@ def execute_tool(name: str, tool_input: dict) -> str:
         "get_weather": get_weather,
         "get_wind": get_wind,
         "get_weather_history": get_weather_history,
-        "get_forecast": get_forecast,
         "deploy_awning": deploy_awning,
         "retract_awning": retract_awning,
         "log_awning_action": log_awning_action,
@@ -194,22 +186,6 @@ tool_schemas = [
                     "type": "integer",
                     "description": "Number of minutes of historical observations to retrieve. Defaults to 60.",
                     "default": 60,
-                }
-            },
-            "required": [],
-        },
-    }),
-    ToolParam({
-        "name": "get_forecast",
-        "description": "Get a weather forecast based on the tempest location.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "period": {
-                    "type": "string",
-                    "enum": ["hourly", "daily"],
-                    "description": "The forecast period type. Defaults to 'hourly'.",
-                    "default": "hourly",
                 }
             },
             "required": [],
