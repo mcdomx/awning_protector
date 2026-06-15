@@ -181,7 +181,7 @@ def run_forecast_worker(ctx: Dict, claude: _Claude, system_blocks: list, task_id
         pop = e.get("pop", 0)
         w = e.get("wind_mph", 0)
         tc = e.get("temp_c", "?")
-        lines.append(f"  {ts}  {desc}  rain_prob={pop:.0%}  wind={w}mph  temp={tc}C")
+        lines.append(f"  {ts}  conditions={desc}  precip_prob={pop:.0%}  wind_avg={w}mph  air_temp={tc}C")
     user_msg = "\n".join(lines)
 
     return _run_worker("forecast", user_msg, claude, system_blocks, task_id)
