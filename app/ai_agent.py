@@ -259,9 +259,7 @@ class AIEngine:
             self._is_running = True
             try:
                 from .ai_pipeline import run_ai_pipeline  # lazy import — avoids ai_agent <-> ai_pipeline cycle
-                from .git_sync import git_sync  # lazy import — avoids ai_agent <-> git_sync cycle
 
-                await git_sync.pull_if_changed()
                 result = await asyncio.to_thread(run_ai_pipeline, cfg.ai)
                 if get_config().ai.ai_enabled:
                     self._last_eval_text = result["evaluation_text"]

@@ -160,12 +160,9 @@ async def test_ai_engine_runs_pipeline_when_weather_reading_complete():
     with patch("app.ai_agent.get_config", return_value=cfg), \
          patch("app.ai_agent.weather_client") as wc, \
          patch("app.ai_agent._within_deploy_window", return_value=True), \
-         patch("app.ai_pipeline.run_ai_pipeline") as fake_pipeline, \
-         patch("app.git_sync.git_sync") as fake_git_sync:
+         patch("app.ai_pipeline.run_ai_pipeline") as fake_pipeline:
         wc.latest_obs = make_complete_obs()
         fake_pipeline.return_value = {"evaluation_text": "ok", "next_eval_seconds": 1800}
-        async def _noop(): pass
-        fake_git_sync.pull_if_changed = _noop
         try:
             await asyncio.wait_for(engine.run(), timeout=0.2)
         except asyncio.TimeoutError:

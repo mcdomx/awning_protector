@@ -558,50 +558,6 @@ async function savePrompt(name) {
   }
 }
 
-async function checkGitStatus() {
-  try {
-    const resp = await fetch('/ai/git-status');
-    if (!resp.ok) return;
-    const data = await resp.json();
-    const btn = el('git-push-btn');
-    if (!btn) return;
-    const canPush = data.has_local_overrides && data.github_token_set;
-    btn.disabled = !canPush;
-    if (!data.github_token_set) {
-      btn.title = 'GIT_TOKEN env var is not set';
-    } else if (!data.has_local_overrides) {
-      btn.title = 'No local prompt changes to push';
-    } else {
-      btn.title = '';
-    }
-  } catch (e) { /* ignore */ }
-}
-
-async function pushPromptsToGit() {
-  const btn = el('git-push-btn');
-  const status = el('git-push-status');
-  if (btn) btn.disabled = true;
-  if (status) status.textContent = 'Pushing…';
-  try {
-    const resp = await fetch('/ai/git-push', { method: 'POST' });
-    const data = await resp.json();
-    if (resp.ok) {
-      const pushed = Object.entries(data.results || {})
-        .filter(([, v]) => v === 'pushed')
-        .map(([k]) => k);
-      if (status) status.textContent = pushed.length ? `Pushed: ${pushed.join(', ')}` : 'Nothing pushed';
-    } else {
-      if (status) status.textContent = `Error: ${data.detail || 'unknown'}`;
-    }
-    setTimeout(() => { if (status) status.textContent = ''; }, 4000);
-    await loadPrompts();
-    await checkGitStatus();
-  } catch (e) {
-    if (status) status.textContent = 'Push failed';
-    if (btn) btn.disabled = false;
-  }
-}
-
 /* --- AI Guidance --- */
 function _fmtTime(isoStr) {
   return new Date(isoStr).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
@@ -709,7 +665,6 @@ async function clearGuidance() {
 
 setInterval(refreshAIStatus, 30000);
 setInterval(tickAICountdown, 1000);
-setInterval(checkGitStatus, 60000);
 
 /* --- Boot --- */
 (async () => {
@@ -720,7 +675,6 @@ setInterval(checkGitStatus, 60000);
   try { await refreshAwningStatus(); } catch (e) { console.error('refreshAwningStatus failed', e); }
   try { await refreshAIStatus(); } catch (e) { console.error('refreshAIStatus failed', e); }
   try { await loadPrompts(); } catch (e) { console.error('loadPrompts failed', e); }
-  try { await checkGitStatus(); } catch (e) { console.error('checkGitStatus failed', e); }
   try { await loadGuidance(); } catch (e) { console.error('loadGuidance failed', e); }
   connectSSE();
 })();

@@ -20,7 +20,6 @@ from .config import (
     AutomationConfig, get_config, save_config,
     UserGuidance, load_guidance, save_guidance, clear_guidance, get_active_guidance_text,
 )
-from .git_sync import git_sync
 from .log_store import AutomationLogEntry, WeatherLogEntry, log_store
 from .weather import weather_client
 
@@ -36,7 +35,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await weather_client.start()
     asyncio.create_task(automation_engine.run())
     asyncio.create_task(ai_engine.run())
-    asyncio.create_task(git_sync.fetch_remote_shas())
     yield
 
 
@@ -245,22 +243,6 @@ async def ai_prompt_put(name: str, body: Dict[str, str]) -> Dict[str, str]:
 async def ai_evaluate() -> Dict[str, str]:
     ai_engine.trigger_immediate()
     return {"status": "evaluation scheduled"}
-
-
-@app.get("/ai/git-status")
-async def ai_git_status() -> Dict[str, Any]:
-    return git_sync.status()
-
-
-@app.post("/ai/git-push")
-async def ai_git_push() -> Dict[str, Any]:
-    try:
-        results = await git_sync.push_prompts()
-        return {"status": "ok", "results": results}
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @app.get("/logs/automation-page", response_class=HTMLResponse)
