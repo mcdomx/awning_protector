@@ -191,18 +191,16 @@ function renderDailyForecast(entries) {
     const low  = toDisplayTemp(e.air_temp_low ?? null);
     const highStr = high != null ? `${Math.round(high)}°` : '--';
     const lowStr  = low  != null ? `${Math.round(low)}°`  : '--';
-    const wind = e.wind_avg != null ? (e.wind_avg * MPH).toFixed(1) + ' mph' : '--';
     const precip = e.precip_probability != null ? `${e.precip_probability}%` : '--';
     const cond = e.conditions || '';
     return `<div class="daily-row">
       <div class="daily-row-top">
         <span class="daily-day">${day}</span>
-        <span class="daily-conditions">${cond}</span>
-      </div>
-      <div class="daily-row-bottom">
         <span><span class="daily-temp-high">${highStr}</span>&thinsp;/&thinsp;<span class="daily-temp-low">${lowStr}</span></span>
         <span class="daily-precip">Rain: ${precip}</span>
-        <span class="daily-wind">Wind: ${wind}</span>
+      </div>
+      <div class="daily-row-bottom">
+        <span class="daily-conditions">${cond}</span>
       </div>
     </div>`;
   }).join('');
