@@ -265,17 +265,22 @@ async function loadConfig() {
   const resp = await fetch('/config');
   if (!resp.ok) return;
   currentConfig = await resp.json();
-  el('cfg-enabled').checked = currentConfig.automation_enabled;
-  el('cfg-override-min').value = currentConfig.manual_override_min;
+  const cfgEnabled = el('cfg-enabled');
+  if (cfgEnabled) cfgEnabled.checked = currentConfig.automation_enabled;
+  const cfgOverride = el('cfg-override-min');
+  if (cfgOverride) cfgOverride.value = currentConfig.manual_override_min;
 
   const radioF = el('cfg-temp-unit-f');
   const radioC = el('cfg-temp-unit-c');
   if (radioF) radioF.checked = (currentConfig.temp_unit || 'F') !== 'C';
   if (radioC) radioC.checked = (currentConfig.temp_unit || 'F') === 'C';
 
-  el('cfg-rain-enabled').checked = currentConfig.rain_triggers_retract;
-  el('cfg-wind-enabled').checked = currentConfig.wind_protection_enabled;
-  el('cfg-max-wind').value = currentConfig.max_wind_mph;
+  const cfgRain = el('cfg-rain-enabled');
+  if (cfgRain) cfgRain.checked = currentConfig.rain_triggers_retract;
+  const cfgWindEnabled = el('cfg-wind-enabled');
+  if (cfgWindEnabled) cfgWindEnabled.checked = currentConfig.wind_protection_enabled;
+  const cfgMaxWind = el('cfg-max-wind');
+  if (cfgMaxWind) cfgMaxWind.value = currentConfig.max_wind_mph;
 
   const ai = currentConfig.ai || {};
   el('cfg-ai-enabled').checked = !!ai.ai_enabled;
@@ -294,16 +299,7 @@ async function loadConfig() {
 }
 
 async function saveCard(cardName) {
-  if (cardName === 'general') {
-    currentConfig.automation_enabled = el('cfg-enabled').checked;
-    currentConfig.manual_override_min = parseInt(el('cfg-override-min').value, 10);
-    currentConfig.temp_unit = el('cfg-temp-unit-c').checked ? 'C' : 'F';
-  } else if (cardName === 'rain') {
-    currentConfig.rain_triggers_retract = el('cfg-rain-enabled').checked;
-  } else if (cardName === 'wind') {
-    currentConfig.wind_protection_enabled = el('cfg-wind-enabled').checked;
-    currentConfig.max_wind_mph = parseFloat(el('cfg-max-wind').value);
-  } else if (cardName === 'ai') {
+  if (cardName === 'ai') {
     if (!currentConfig.ai) currentConfig.ai = {};
     currentConfig.ai.ai_enabled = el('cfg-ai-enabled').checked;
     currentConfig.ai.current_wind_threshold_mph = parseFloat(el('cfg-ai-wind').value);
@@ -530,34 +526,6 @@ async function aiEvaluateNow() {
   }
 }
 
-async function loadPrompts() {
-  for (const name of ['wind', 'rain', 'forecast', 'solar', 'coordinator', 'orchestrator']) {
-    try {
-      const resp = await fetch(`/ai/prompts/${name}`);
-      if (resp.ok) {
-        const data = await resp.json();
-        const ta = el(`cfg-ai-prompt-${name}`);
-        if (ta) ta.value = data.content;
-      }
-    } catch (e) { /* ignore */ }
-  }
-}
-
-async function savePrompt(name) {
-  const ta = el(`cfg-ai-prompt-${name}`);
-  const status = el(`save-status-prompt-${name}`);
-  if (!ta) return;
-  const resp = await fetch(`/ai/prompts/${name}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content: ta.value }),
-  });
-  if (status) {
-    status.textContent = resp.ok ? 'Saved' : 'Error saving';
-    setTimeout(() => { status.textContent = ''; }, 2000);
-  }
-}
-
 /* --- AI Guidance --- */
 function _fmtTime(isoStr) {
   return new Date(isoStr).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
@@ -674,7 +642,6 @@ setInterval(tickAICountdown, 1000);
   try { await loadDailyForecast(); } catch (e) { console.error('loadDailyForecast failed', e); }
   try { await refreshAwningStatus(); } catch (e) { console.error('refreshAwningStatus failed', e); }
   try { await refreshAIStatus(); } catch (e) { console.error('refreshAIStatus failed', e); }
-  try { await loadPrompts(); } catch (e) { console.error('loadPrompts failed', e); }
   try { await loadGuidance(); } catch (e) { console.error('loadGuidance failed', e); }
   connectSSE();
 })();

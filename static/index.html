@@ -16,6 +16,7 @@
       <a href="/logs/automation-page">Automation Log</a>
       <a href="/logs/weather-page">Weather Log</a>
       <a href="/charts">Charts</a>
+      <a href="/admin" class="nav-icon-link" title="Admin">&#9881;</a>
     </nav>
   </header>
 
@@ -118,63 +119,6 @@
         <button class="btn btn-undeploy" onclick="awningCmd('undeploy')">Retract</button>
       </div>
       <p class="muted" id="override-notice"></p>
-    </section>
-
-    <!-- General settings panel -->
-    <section class="card" id="config-general">
-      <h2>Settings</h2>
-      <div class="automation-card-body">
-        <label>
-          <input type="checkbox" id="cfg-enabled" />
-          Automation enabled (master)
-        </label>
-        <div class="field-row">
-          <label for="cfg-override-min">Manual override (min)</label>
-          <input type="number" id="cfg-override-min" min="0" max="240" step="5" />
-        </div>
-        <div class="field-row">
-          <label>Temperature unit</label>
-          <div class="radio-group">
-            <label><input type="radio" name="temp-unit" id="cfg-temp-unit-f" value="F" /> °F</label>
-            <label><input type="radio" name="temp-unit" id="cfg-temp-unit-c" value="C" /> °C</label>
-          </div>
-        </div>
-        <button class="btn btn-save" onclick="saveCard('general')">Save</button>
-        <span id="save-status-general" class="muted"></span>
-      </div>
-    </section>
-
-    <!-- Rain protection automation card -->
-    <section class="card automation-card" id="config-rain">
-      <div class="automation-card-header">
-        <label class="automation-toggle">
-          <input type="checkbox" id="cfg-rain-enabled" onchange="updateCardDisabledState()" />
-          <span class="card-title">Rain Protection</span>
-        </label>
-      </div>
-      <div class="automation-card-body">
-        <p class="muted">Retract awning immediately when rain or precipitation is detected.</p>
-        <button class="btn btn-save" onclick="saveCard('rain')">Save</button>
-        <span id="save-status-rain" class="muted"></span>
-      </div>
-    </section>
-
-    <!-- Wind protection automation card -->
-    <section class="card automation-card" id="config-wind">
-      <div class="automation-card-header">
-        <label class="automation-toggle">
-          <input type="checkbox" id="cfg-wind-enabled" onchange="updateCardDisabledState()" />
-          <span class="card-title">Wind Protection</span>
-        </label>
-      </div>
-      <div class="automation-card-body">
-        <div class="field-row">
-          <label for="cfg-max-wind">Max wind (mph)</label>
-          <input type="number" id="cfg-max-wind" min="0" max="60" step="0.5" />
-        </div>
-        <button class="btn btn-save" onclick="saveCard('wind')">Save</button>
-        <span id="save-status-wind" class="muted"></span>
-      </div>
     </section>
 
     <!-- AI Deploy automation card -->
@@ -297,65 +241,6 @@
       </div>
     </section>
 
-    <!-- AI Prompts card -->
-    <section class="card" id="config-ai-prompts">
-      <h2>AI Prompts</h2>
-      <div class="automation-card-body">
-        <details class="ai-prompt-details">
-          <summary>Edit Wind Worker Prompt</summary>
-          <textarea id="cfg-ai-prompt-wind" class="ai-prompt-textarea" rows="10" spellcheck="false"></textarea>
-          <div class="prompt-actions">
-            <button class="btn btn-save" onclick="savePrompt('wind')">Save Prompt</button>
-            <span id="save-status-prompt-wind" class="muted"></span>
-          </div>
-        </details>
-
-        <details class="ai-prompt-details">
-          <summary>Edit Rain Worker Prompt</summary>
-          <textarea id="cfg-ai-prompt-rain" class="ai-prompt-textarea" rows="10" spellcheck="false"></textarea>
-          <div class="prompt-actions">
-            <button class="btn btn-save" onclick="savePrompt('rain')">Save Prompt</button>
-            <span id="save-status-prompt-rain" class="muted"></span>
-          </div>
-        </details>
-
-        <details class="ai-prompt-details">
-          <summary>Edit Forecast Worker Prompt</summary>
-          <textarea id="cfg-ai-prompt-forecast" class="ai-prompt-textarea" rows="10" spellcheck="false"></textarea>
-          <div class="prompt-actions">
-            <button class="btn btn-save" onclick="savePrompt('forecast')">Save Prompt</button>
-            <span id="save-status-prompt-forecast" class="muted"></span>
-          </div>
-        </details>
-
-        <details class="ai-prompt-details">
-          <summary>Edit Solar Worker Prompt</summary>
-          <textarea id="cfg-ai-prompt-solar" class="ai-prompt-textarea" rows="10" spellcheck="false"></textarea>
-          <div class="prompt-actions">
-            <button class="btn btn-save" onclick="savePrompt('solar')">Save Prompt</button>
-            <span id="save-status-prompt-solar" class="muted"></span>
-          </div>
-        </details>
-
-        <details class="ai-prompt-details">
-          <summary>Edit Coordinator Prompt</summary>
-          <textarea id="cfg-ai-prompt-coordinator" class="ai-prompt-textarea" rows="14" spellcheck="false"></textarea>
-          <div class="prompt-actions">
-            <button class="btn btn-save" onclick="savePrompt('coordinator')">Save Prompt</button>
-            <span id="save-status-prompt-coordinator" class="muted"></span>
-          </div>
-        </details>
-
-        <details class="ai-prompt-details">
-          <summary>Edit Orchestrator Prompt</summary>
-          <textarea id="cfg-ai-prompt-orchestrator" class="ai-prompt-textarea" rows="20" spellcheck="false"></textarea>
-          <div class="prompt-actions">
-            <button class="btn btn-save" onclick="savePrompt('orchestrator')">Save Prompt</button>
-            <span id="save-status-prompt-orchestrator" class="muted"></span>
-          </div>
-        </details>
-      </div>
-    </section>
   </main>
 
   <script src="/static/app.js"></script>

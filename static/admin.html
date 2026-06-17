@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin — Awning Protector</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/logs.css" />
+</head>
+<body>
+  <header>
+    <h1>Awning Protector</h1>
+    <nav class="nav-links">
+      <a href="/">Dashboard</a>
+      <a href="/logs/automation-page">Automation Log</a>
+      <a href="/logs/weather-page">Weather Log</a>
+      <a href="/charts">Charts</a>
+      <a href="/admin" class="active nav-icon-link" title="Admin">&#9881;</a>
+    </nav>
+  </header>
+
+  <main>
+    <!-- General settings -->
+    <section class="card" id="config-general">
+      <h2>Settings</h2>
+      <div class="automation-card-body">
+        <label>
+          <input type="checkbox" id="cfg-enabled" />
+          Automation enabled (master)
+        </label>
+        <div class="field-row">
+          <label for="cfg-override-min">Manual override (min)</label>
+          <input type="number" id="cfg-override-min" min="0" max="240" step="5" />
+        </div>
+        <div class="field-row">
+          <label>Temperature unit</label>
+          <div class="radio-group">
+            <label><input type="radio" name="temp-unit" id="cfg-temp-unit-f" value="F" /> °F</label>
+            <label><input type="radio" name="temp-unit" id="cfg-temp-unit-c" value="C" /> °C</label>
+          </div>
+        </div>
+        <button class="btn btn-save" onclick="saveCard('general')">Save</button>
+        <span id="save-status-general" class="muted"></span>
+      </div>
+    </section>
+
+    <!-- Rain protection -->
+    <section class="card automation-card" id="config-rain">
+      <div class="automation-card-header">
+        <label class="automation-toggle">
+          <input type="checkbox" id="cfg-rain-enabled" onchange="updateCardDisabledState()" />
+          <span class="card-title">Rain Protection</span>
+        </label>
+      </div>
+      <div class="automation-card-body">
+        <p class="muted">Retract awning immediately when rain or precipitation is detected.</p>
+        <button class="btn btn-save" onclick="saveCard('rain')">Save</button>
+        <span id="save-status-rain" class="muted"></span>
+      </div>
+    </section>
+
+    <!-- Wind protection -->
+    <section class="card automation-card" id="config-wind">
+      <div class="automation-card-header">
+        <label class="automation-toggle">
+          <input type="checkbox" id="cfg-wind-enabled" onchange="updateCardDisabledState()" />
+          <span class="card-title">Wind Protection</span>
+        </label>
+      </div>
+      <div class="automation-card-body">
+        <div class="field-row">
+          <label for="cfg-max-wind">Max wind (mph)</label>
+          <input type="number" id="cfg-max-wind" min="0" max="60" step="0.5" />
+        </div>
+        <button class="btn btn-save" onclick="saveCard('wind')">Save</button>
+        <span id="save-status-wind" class="muted"></span>
+      </div>
+    </section>
+
+    <section class="card" id="config-ai-prompts" style="grid-column: 1 / -1;">
+      <h2>AI Prompts</h2>
+      <div class="automation-card-body">
+
+        <details class="ai-prompt-details">
+          <summary>Wind Worker Prompt</summary>
+          <textarea id="cfg-ai-prompt-wind" class="ai-prompt-textarea" rows="10" spellcheck="false"></textarea>
+          <div class="prompt-actions">
+            <button class="btn btn-save" onclick="savePrompt('wind')">Save Prompt</button>
+            <span id="save-status-prompt-wind" class="muted"></span>
+          </div>
+        </details>
+
+        <details class="ai-prompt-details">
+          <summary>Rain Worker Prompt</summary>
+          <textarea id="cfg-ai-prompt-rain" class="ai-prompt-textarea" rows="10" spellcheck="false"></textarea>
+          <div class="prompt-actions">
+            <button class="btn btn-save" onclick="savePrompt('rain')">Save Prompt</button>
+            <span id="save-status-prompt-rain" class="muted"></span>
+          </div>
+        </details>
+
+        <details class="ai-prompt-details">
+          <summary>Forecast Worker Prompt</summary>
+          <textarea id="cfg-ai-prompt-forecast" class="ai-prompt-textarea" rows="10" spellcheck="false"></textarea>
+          <div class="prompt-actions">
+            <button class="btn btn-save" onclick="savePrompt('forecast')">Save Prompt</button>
+            <span id="save-status-prompt-forecast" class="muted"></span>
+          </div>
+        </details>
+
+        <details class="ai-prompt-details">
+          <summary>Solar Worker Prompt</summary>
+          <textarea id="cfg-ai-prompt-solar" class="ai-prompt-textarea" rows="10" spellcheck="false"></textarea>
+          <div class="prompt-actions">
+            <button class="btn btn-save" onclick="savePrompt('solar')">Save Prompt</button>
+            <span id="save-status-prompt-solar" class="muted"></span>
+          </div>
+        </details>
+
+        <details class="ai-prompt-details">
+          <summary>Coordinator Prompt</summary>
+          <textarea id="cfg-ai-prompt-coordinator" class="ai-prompt-textarea" rows="14" spellcheck="false"></textarea>
+          <div class="prompt-actions">
+            <button class="btn btn-save" onclick="savePrompt('coordinator')">Save Prompt</button>
+            <span id="save-status-prompt-coordinator" class="muted"></span>
+          </div>
+        </details>
+
+        <details class="ai-prompt-details">
+          <summary>Orchestrator Prompt</summary>
+          <textarea id="cfg-ai-prompt-orchestrator" class="ai-prompt-textarea" rows="20" spellcheck="false"></textarea>
+          <div class="prompt-actions">
+            <button class="btn btn-save" onclick="savePrompt('orchestrator')">Save Prompt</button>
+            <span id="save-status-prompt-orchestrator" class="muted"></span>
+          </div>
+        </details>
+
+      </div>
+    </section>
+  </main>
+
+  <script>
+    function el(id) { return document.getElementById(id); }
+
+    let currentConfig = {};
+
+    function updateCardDisabledState() {
+      [['rain', 'cfg-rain-enabled'], ['wind', 'cfg-wind-enabled']].forEach(([name, checkId]) => {
+        const checkbox = el(checkId);
+        const body = el(`config-${name}`)?.querySelector('.automation-card-body');
+        if (body && checkbox) body.classList.toggle('card-body-disabled', !checkbox.checked);
+      });
+    }
+
+    async function loadConfig() {
+      const resp = await fetch('/config');
+      if (!resp.ok) return;
+      currentConfig = await resp.json();
+      el('cfg-enabled').checked = currentConfig.automation_enabled;
+      el('cfg-override-min').value = currentConfig.manual_override_min;
+      const radioF = el('cfg-temp-unit-f');
+      const radioC = el('cfg-temp-unit-c');
+      if (radioF) radioF.checked = (currentConfig.temp_unit || 'F') !== 'C';
+      if (radioC) radioC.checked = (currentConfig.temp_unit || 'F') === 'C';
+      el('cfg-rain-enabled').checked = currentConfig.rain_triggers_retract;
+      el('cfg-wind-enabled').checked = currentConfig.wind_protection_enabled;
+      el('cfg-max-wind').value = currentConfig.max_wind_mph;
+      updateCardDisabledState();
+    }
+
+    async function saveCard(cardName) {
+      if (cardName === 'general') {
+        currentConfig.automation_enabled = el('cfg-enabled').checked;
+        currentConfig.manual_override_min = parseInt(el('cfg-override-min').value, 10);
+        currentConfig.temp_unit = el('cfg-temp-unit-c').checked ? 'C' : 'F';
+      } else if (cardName === 'rain') {
+        currentConfig.rain_triggers_retract = el('cfg-rain-enabled').checked;
+      } else if (cardName === 'wind') {
+        currentConfig.wind_protection_enabled = el('cfg-wind-enabled').checked;
+        currentConfig.max_wind_mph = parseFloat(el('cfg-max-wind').value);
+      }
+      const resp = await fetch('/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(currentConfig),
+      });
+      const status = el(`save-status-${cardName}`);
+      if (resp.ok) {
+        currentConfig = await resp.json();
+        updateCardDisabledState();
+        if (status) { status.textContent = 'Saved'; setTimeout(() => { status.textContent = ''; }, 2000); }
+      } else {
+        if (status) status.textContent = 'Error saving';
+      }
+    }
+
+    async function loadPrompts() {
+      for (const name of ['wind', 'rain', 'forecast', 'solar', 'coordinator', 'orchestrator']) {
+        try {
+          const resp = await fetch(`/ai/prompts/${name}`);
+          if (resp.ok) {
+            const data = await resp.json();
+            const ta = el(`cfg-ai-prompt-${name}`);
+            if (ta) ta.value = data.content;
+          }
+        } catch (e) { /* ignore */ }
+      }
+    }
+
+    async function savePrompt(name) {
+      const ta = el(`cfg-ai-prompt-${name}`);
+      const status = el(`save-status-prompt-${name}`);
+      if (!ta) return;
+      const resp = await fetch(`/ai/prompts/${name}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: ta.value }),
+      });
+      if (status) {
+        status.textContent = resp.ok ? 'Saved' : 'Error saving';
+        setTimeout(() => { status.textContent = ''; }, 2000);
+      }
+    }
+
+    loadConfig();
+    loadPrompts();
+  </script>
+</body>
+</html>

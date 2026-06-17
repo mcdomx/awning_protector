@@ -24,6 +24,12 @@
   background: rgba(56, 189, 248, 0.1);
 }
 
+.nav-icon-link {
+  font-size: 1.1rem;
+  padding: 0.2rem 0.4rem;
+  line-height: 1;
+}
+
 /* Toolbar */
 .log-toolbar {
   display: flex;
