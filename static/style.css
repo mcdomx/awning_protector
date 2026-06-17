@@ -74,10 +74,17 @@ main {
 .stat-inline { display: flex; align-items: baseline; gap: 0.1em; line-height: 1; }
 
 /* Conditions */
+#rain-card {
+  display: flex;
+  flex-direction: column;
+}
+
 .conditions-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
+  flex: 1;
+  align-content: space-evenly;
 }
 
 .forecast-updated { margin-bottom: 0.75rem; }
