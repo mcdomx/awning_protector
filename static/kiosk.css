@@ -185,12 +185,11 @@ body {
 
 .awning-hourly-strip {
   display: flex;
-  overflow-x: auto;
   gap: 0.6rem;
 }
 .awning-hour-col {
-  flex: 0 0 auto;
-  min-width: 84px;
+  flex: 1 1 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -216,6 +215,10 @@ body {
 }
 .btn-touch:active { opacity: 0.7; }
 .btn-touch:disabled { opacity: 0.4; cursor: not-allowed; }
+.awning-controls-card .btn-touch {
+  font-size: 2.2rem;
+  min-height: 144px;
+}
 .btn-deploy { background: var(--green); color: #000; }
 .btn-stop { background: var(--yellow); color: #000; }
 .btn-undeploy { background: var(--red); color: #fff; }
