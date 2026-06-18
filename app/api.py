@@ -265,6 +265,11 @@ async def admin_page() -> HTMLResponse:
     return HTMLResponse((STATIC_DIR / "admin.html").read_text())
 
 
+@app.get("/kiosk", response_class=HTMLResponse)
+async def kiosk_page() -> HTMLResponse:
+    return HTMLResponse((STATIC_DIR / "kiosk.html").read_text())
+
+
 @app.get("/logs/automation", response_model=List[AutomationLogEntry])
 async def logs_automation() -> List[AutomationLogEntry]:
     return log_store.get_automation()
