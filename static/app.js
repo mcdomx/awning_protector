@@ -290,8 +290,8 @@ async function loadConfig() {
   el('cfg-ai-latest').value = ai.latest_auto_deployment ?? '6PM';
   el('cfg-ai-max-deploy').value = ai.max_deployment_seconds ?? 5;
   el('cfg-ai-min-deploy').value = ai.min_deployment_seconds ?? 2;
-  el('cfg-ai-min-interval').value = ai.min_eval_interval_seconds ?? 300;
-  el('cfg-ai-max-interval').value = ai.max_eval_interval_seconds ?? 4500;
+  el('cfg-ai-min-interval').value = Math.round((ai.min_eval_interval_seconds ?? 300) / 60);
+  el('cfg-ai-max-interval').value = Math.round((ai.max_eval_interval_seconds ?? 4500) / 60);
 
   updateCardDisabledState();
   updateTempUnitUI();
@@ -309,8 +309,8 @@ async function saveCard(cardName) {
     currentConfig.ai.latest_auto_deployment = el('cfg-ai-latest').value.trim();
     currentConfig.ai.max_deployment_seconds = parseInt(el('cfg-ai-max-deploy').value, 10);
     currentConfig.ai.min_deployment_seconds = parseInt(el('cfg-ai-min-deploy').value, 10);
-    currentConfig.ai.min_eval_interval_seconds = parseInt(el('cfg-ai-min-interval').value, 10);
-    currentConfig.ai.max_eval_interval_seconds = parseInt(el('cfg-ai-max-interval').value, 10);
+    currentConfig.ai.min_eval_interval_seconds = parseInt(el('cfg-ai-min-interval').value, 10) * 60;
+    currentConfig.ai.max_eval_interval_seconds = parseInt(el('cfg-ai-max-interval').value, 10) * 60;
   }
   const resp = await fetch('/config', {
     method: 'PUT',
