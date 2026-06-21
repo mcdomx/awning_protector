@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
@@ -117,7 +117,7 @@ async def test_ai_engine_skips_pipeline_outside_deploy_window():
 
     with patch("app.ai_agent.get_config", return_value=cfg), \
          patch("app.ai_agent._within_deploy_window", return_value=False), \
-         patch("app.ai_agent._next_window_open_at", return_value=datetime(2026, 6, 14, 12, 0, tzinfo=timezone.utc)), \
+         patch("app.ai_agent._next_window_open_at", return_value=datetime.now(timezone.utc) + timedelta(days=1)), \
          patch("app.ai_pipeline.run_ai_pipeline") as fake_pipeline:
         try:
             await asyncio.wait_for(engine.run(), timeout=0.2)
