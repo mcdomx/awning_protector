@@ -291,6 +291,7 @@ async function loadConfig() {
   el('cfg-ai-max-deploy').value = ai.max_deployment_seconds ?? 5;
   el('cfg-ai-min-deploy').value = ai.min_deployment_seconds ?? 2;
   el('cfg-ai-min-interval').value = ai.min_eval_interval_seconds ?? 300;
+  el('cfg-ai-max-interval').value = ai.max_eval_interval_seconds ?? 4500;
 
   updateCardDisabledState();
   updateTempUnitUI();
@@ -309,6 +310,7 @@ async function saveCard(cardName) {
     currentConfig.ai.max_deployment_seconds = parseInt(el('cfg-ai-max-deploy').value, 10);
     currentConfig.ai.min_deployment_seconds = parseInt(el('cfg-ai-min-deploy').value, 10);
     currentConfig.ai.min_eval_interval_seconds = parseInt(el('cfg-ai-min-interval').value, 10);
+    currentConfig.ai.max_eval_interval_seconds = parseInt(el('cfg-ai-max-interval').value, 10);
   }
   const resp = await fetch('/config', {
     method: 'PUT',

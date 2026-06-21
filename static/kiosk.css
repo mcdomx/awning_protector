@@ -204,13 +204,16 @@ body {
 .awning-hour-value { font-size: 0.95rem; font-weight: 600; }
 
 .btn-touch {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
   padding: 1.1rem;
   border-radius: 12px;
   border: none;
-  font-size: 1.1rem;
+  font-size: 1.3rem;
   font-weight: 700;
   cursor: pointer;
-  min-height: 72px;
+  min-height: 64px;
   transition: opacity 0.15s;
 }
 .btn-touch:active { opacity: 0.7; }
@@ -222,7 +225,8 @@ body {
 .btn-deploy { background: var(--green); color: #000; }
 .btn-stop { background: var(--yellow); color: #000; }
 .btn-undeploy { background: var(--red); color: #fff; }
-.btn-save { background: var(--accent); color: #000; margin-top: 0.75rem; }
+.btn-save { background: var(--accent); color: #000; }
+.kiosk-card > .btn-save { margin-top: 0.75rem; }
 
 /* AI */
 .automation-toggle {
@@ -272,7 +276,8 @@ body {
 }
 .field-row:last-of-type { border-bottom: none; }
 .field-row label { font-size: 0.9rem; color: var(--muted); }
-.field-row input {
+.field-row input,
+.field-row select {
   background: var(--bg);
   border: 1px solid var(--border);
   color: var(--text);
@@ -282,16 +287,79 @@ body {
   width: 6.5rem;
   text-align: right;
 }
-
-.admin-link {
-  display: inline-block;
-  margin-top: 0.85rem;
-  color: var(--accent);
-  font-size: 0.9rem;
-  text-decoration: none;
+.field-row-stack {
+  flex-direction: column;
+  align-items: stretch;
+}
+.radio-group {
+  display: flex;
+  gap: 0.6rem;
+}
+.radio-pill {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 0.9rem 0.4rem;
+  border-radius: 12px;
+  border: 2px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-weight: 700;
+  font-size: 1.1rem;
+  min-height: 64px;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.radio-pill input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.radio-pill:has(input:checked) {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #000;
+}
+.radio-pill-sub {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+.radio-pill:has(input:checked) .radio-pill-sub { color: #000; opacity: 0.75; }
+.expiry-selects {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.expiry-selects select {
+  width: auto;
+  text-align: left;
+  font-size: 1.3rem;
+  padding: 0.7rem 0.8rem;
+  min-height: 56px;
+}
+.kiosk-btn-row {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+}
+.kiosk-btn-row .btn-touch {
+  flex: 1;
+  min-height: 56px;
+  padding: 0.75rem;
 }
 
 .muted { color: var(--muted); font-size: 0.85rem; }
+
+/* QR code */
+.qr-card { display: flex; flex-direction: column; align-items: center; gap: 0.75rem; text-align: center; }
+.qr-code { background: #fff; padding: 0.75rem; border-radius: 10px; }
+.qr-code svg { display: block; width: 220px; height: 220px; }
 
 /* Dot indicator */
 .dots {

@@ -21,6 +21,7 @@ class AIConfig(BaseModel):
     min_deployment_seconds: int = 2
     min_deployment_temp_f: float = 65.0
     min_eval_interval_seconds: int = 300
+    max_eval_interval_seconds: int = 4500
 
 
 class AutomationConfig(BaseModel):

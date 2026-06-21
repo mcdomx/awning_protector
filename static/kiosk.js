@@ -256,8 +256,14 @@ async function loadConfig() {
   el('cfg-ai-enabled').checked = !!ai.ai_enabled;
   el('cfg-ai-wind').value = ai.current_wind_threshold_mph ?? 3.0;
   el('cfg-ai-forecast-wind').value = ai.forecasted_wind_threshold_mph ?? 8.0;
+  el('cfg-ai-forecast-hours').value = ai.forecast_outlook_hours ?? 2;
+  el('cfg-ai-min-temp').value = ai.min_deployment_temp_f ?? 65.0;
   el('cfg-ai-earliest').value = ai.earliest_auto_deployment ?? '8AM';
   el('cfg-ai-latest').value = ai.latest_auto_deployment ?? '6PM';
+  el('cfg-ai-max-deploy').value = ai.max_deployment_seconds ?? 5;
+  el('cfg-ai-min-deploy').value = ai.min_deployment_seconds ?? 2;
+  el('cfg-ai-min-interval').value = ai.min_eval_interval_seconds ?? 300;
+  el('cfg-ai-max-interval').value = ai.max_eval_interval_seconds ?? 4500;
   updateTempUnitUI();
 }
 
@@ -266,8 +272,14 @@ async function saveAISettings() {
   currentConfig.ai.ai_enabled = el('cfg-ai-enabled').checked;
   currentConfig.ai.current_wind_threshold_mph = parseFloat(el('cfg-ai-wind').value);
   currentConfig.ai.forecasted_wind_threshold_mph = parseFloat(el('cfg-ai-forecast-wind').value);
+  currentConfig.ai.forecast_outlook_hours = parseInt(el('cfg-ai-forecast-hours').value, 10);
+  currentConfig.ai.min_deployment_temp_f = parseFloat(el('cfg-ai-min-temp').value);
   currentConfig.ai.earliest_auto_deployment = el('cfg-ai-earliest').value.trim();
   currentConfig.ai.latest_auto_deployment = el('cfg-ai-latest').value.trim();
+  currentConfig.ai.max_deployment_seconds = parseInt(el('cfg-ai-max-deploy').value, 10);
+  currentConfig.ai.min_deployment_seconds = parseInt(el('cfg-ai-min-deploy').value, 10);
+  currentConfig.ai.min_eval_interval_seconds = parseInt(el('cfg-ai-min-interval').value, 10);
+  currentConfig.ai.max_eval_interval_seconds = parseInt(el('cfg-ai-max-interval').value, 10);
 
   const resp = await fetch('/config', {
     method: 'PUT',
@@ -458,6 +470,144 @@ async function aiEvaluateNow() {
 setInterval(refreshAIStatus, 30000);
 setInterval(tickAICountdown, 1000);
 
+/* --- AI Guidance --- */
+function _fmtTime(isoStr) {
+  return new Date(isoStr).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+function _setExpirySelects(isoStr) {
+  const d = new Date(isoStr);
+  const h24 = d.getHours();
+  const ampm = h24 < 12 ? 'AM' : 'PM';
+  const h12 = h24 % 12 || 12;
+  const min = d.getMinutes();
+  const hourEl = el('cfg-ai-guidance-expiry-hour');
+  const minEl = el('cfg-ai-guidance-expiry-min');
+  const ampmEl = el('cfg-ai-guidance-expiry-ampm');
+  if (hourEl) hourEl.value = String(h12);
+  if (minEl) minEl.value = String(min);
+  if (ampmEl) ampmEl.value = ampm;
+}
+
+function _setDefaultExpiry() {
+  _setExpirySelects(new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString());
+}
+
+function _radioValue(name) {
+  const checked = document.querySelector(`input[name="${name}"]:checked`);
+  return checked ? checked.value : null;
+}
+
+function _setRadioValue(name, value) {
+  const input = document.querySelector(`input[name="${name}"][value="${value}"]`);
+  if (input) input.checked = true;
+}
+
+const RISK_PHRASES = {
+  '1': 'Take no risks — retract proactively at the slightest concern',
+  '2': 'Take a low level of risk — favor caution over keeping the awning deployed',
+  '3': 'Take a moderate, balanced level of risk',
+  '4': 'Take a higher level of risk — favor keeping the awning deployed when conditions are borderline',
+  '5': 'Take the maximum acceptable risk — only retract for clear, immediate danger',
+};
+
+function _buildGuidanceText(location, risk) {
+  const locPhrase = location === 'home'
+    ? "I'm home and can monitor conditions"
+    : "I'm away and cannot react quickly";
+  return `${locPhrase}. ${RISK_PHRASES[risk]} (risk level ${risk}/5).`;
+}
+
+function updateGuidanceUI(data) {
+  const statusEl = el('ai-guidance-status');
+  const clearBtn = el('ai-clear-guidance-btn');
+  if (!data || !data.text) {
+    if (statusEl) statusEl.textContent = 'No guidance active.';
+    if (clearBtn) clearBtn.disabled = true;
+    return;
+  }
+  if (clearBtn) clearBtn.disabled = false;
+  if (data.expires_at) _setExpirySelects(data.expires_at);
+  if (data.active) {
+    const expStr = data.expires_at ? ` · Expires ${_fmtTime(data.expires_at)}` : ' · No expiry';
+    if (statusEl) statusEl.textContent = data.text + ' · Active' + expStr;
+  } else {
+    const expStr = data.expires_at ? ` (expired ${_fmtTime(data.expires_at)})` : '';
+    if (statusEl) statusEl.textContent = data.text + ' · Guidance set but expired' + expStr;
+  }
+}
+
+async function loadGuidance() {
+  const resp = await fetch('/ai/guidance');
+  if (!resp.ok) return;
+  updateGuidanceUI(await resp.json());
+}
+
+async function saveGuidance() {
+  const status = el('save-status-guidance');
+  const location = _radioValue('ai-guidance-location');
+  const risk = _radioValue('ai-guidance-risk');
+  if (!location || !risk) {
+    if (status) { status.textContent = 'Select an option in both groups.'; setTimeout(() => { status.textContent = ''; }, 2500); }
+    return;
+  }
+  const body = { text: _buildGuidanceText(location, risk) };
+  const hourVal = el('cfg-ai-guidance-expiry-hour').value;
+  const minVal = el('cfg-ai-guidance-expiry-min').value;
+  const ampmVal = el('cfg-ai-guidance-expiry-ampm').value;
+  if (hourVal && minVal !== '' && ampmVal) {
+    let h = parseInt(hourVal, 10);
+    if (ampmVal === 'PM' && h !== 12) h += 12;
+    if (ampmVal === 'AM' && h === 12) h = 0;
+    const d = new Date();
+    d.setHours(h, parseInt(minVal, 10), 0, 0);
+    body.expires_at = d.toISOString();
+  }
+  try {
+    const resp = await fetch('/ai/guidance', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (resp.ok) {
+      updateGuidanceUI(await resp.json());
+      if (status) { status.textContent = 'Saved'; setTimeout(() => { status.textContent = ''; }, 2000); }
+    } else {
+      if (status) status.textContent = 'Error saving';
+    }
+  } catch (e) {
+    if (status) status.textContent = 'Error saving';
+  }
+}
+
+async function clearGuidance() {
+  const status = el('save-status-guidance');
+  try {
+    await fetch('/ai/guidance', { method: 'DELETE' });
+    _setRadioValue('ai-guidance-location', 'home');
+    _setRadioValue('ai-guidance-risk', '3');
+    _setDefaultExpiry();
+    updateGuidanceUI({ active: false, text: null, expires_at: null });
+    if (status) { status.textContent = 'Cleared'; setTimeout(() => { status.textContent = ''; }, 2000); }
+  } catch (e) {
+    if (status) status.textContent = 'Error clearing';
+  }
+}
+
+/* --- QR code --- */
+function renderQRCode() {
+  const container = el('qr-code');
+  const urlEl = el('qr-url');
+  if (!container) return;
+  const url = window.location.origin + '/';
+  if (urlEl) urlEl.textContent = url;
+  container.innerHTML = '';
+  const qr = qrcode(0, 'M');
+  qr.addData(url);
+  qr.make();
+  container.innerHTML = qr.createSvgTag({ cellSize: 6, margin: 4 });
+}
+
 /* --- Swipe dot indicator --- */
 function setupScreenDots() {
   const screens = el('screens');
@@ -477,11 +627,14 @@ function setupScreenDots() {
 /* --- Boot --- */
 (async () => {
   setupScreenDots();
+  try { renderQRCode(); } catch (e) { console.error('renderQRCode failed', e); }
   try { await loadConfig(); } catch (e) { console.error('loadConfig failed', e); }
   try { await loadInitialWeather(); } catch (e) { console.error('loadInitialWeather failed', e); }
   try { await loadHourlyForecast(); } catch (e) { console.error('loadHourlyForecast failed', e); }
   try { await loadDailyForecast(); } catch (e) { console.error('loadDailyForecast failed', e); }
   try { await refreshAwningStatus(); } catch (e) { console.error('refreshAwningStatus failed', e); }
   try { await refreshAIStatus(); } catch (e) { console.error('refreshAIStatus failed', e); }
+  _setDefaultExpiry();
+  try { await loadGuidance(); } catch (e) { console.error('loadGuidance failed', e); }
   connectSSE();
 })();

@@ -324,7 +324,12 @@ def run_ai_pipeline(cfg) -> dict:
     forecast_blocks = _build_system_blocks("forecast", cfg)
     solar_blocks = _build_system_blocks("solar", cfg)
     coordinator_blocks = _build_system_blocks("coordinator", cfg)
-    orchestrator_blocks = _build_system_blocks("orchestrator", cfg)
+    orchestrator_blocks = _build_system_blocks(
+        "orchestrator",
+        cfg,
+        min_eval_interval=cfg.min_eval_interval_seconds // 60,
+        max_eval_interval=cfg.max_eval_interval_seconds // 60,
+    )
     user_guidance = get_active_guidance_text()
     if user_guidance:
         orchestrator_blocks.append({
