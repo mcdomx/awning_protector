@@ -599,7 +599,14 @@ function renderQRCode() {
   const container = el('qr-code');
   const urlEl = el('qr-url');
   if (!container) return;
-  const url = window.location.origin + '/';
+  // The kiosk browser runs locally on the Pi, so window.location.hostname is
+  // typically "localhost"/"127.0.0.1" — useless for a phone scanning the
+  // code. Substitute the Pi's LAN mDNS hostname in that case.
+  const loc = window.location;
+  const host = (loc.hostname === 'localhost' || loc.hostname === '127.0.0.1')
+    ? 'awningprotector.local'
+    : loc.hostname;
+  const url = `${loc.protocol}//${host}${loc.port ? ':' + loc.port : ''}/`;
   if (urlEl) urlEl.textContent = url;
   container.innerHTML = '';
   const qr = qrcode(0, 'M');

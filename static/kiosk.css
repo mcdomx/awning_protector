@@ -34,6 +34,14 @@ body {
   padding: 2rem;
 }
 
+/* On the physical Pi, Chromium runs --kiosk at the display's exact native
+   resolution (no browser chrome) — drop the decorative padding/frame there
+   so content fills the screen edge-to-edge instead of getting clipped. */
+@media (width: 720px) and (height: 1280px) {
+  body { padding: 0; }
+  .kiosk-frame { border-radius: 0; box-shadow: none; }
+}
+
 /* Fixed-size device frame so the kiosk always renders at Pi dimensions,
    regardless of the desktop browser window size, during local design/testing. */
 .kiosk-frame {
