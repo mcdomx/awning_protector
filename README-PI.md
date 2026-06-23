@@ -204,7 +204,20 @@ Bookworm's default compositor (`labwc`, Wayland) doesn't honor the old `lcd_rota
 
 If you'd rather not enable VNC, the headless alternative is appending `panel_orientation=left_side_up` to the `video=DSI-1:...` mode line in `/boot/firmware/config.txt`, but expect to also recalibrate touch coordinates separately (`vc4-kms-dsi-*` overlay `invx`/`invy` options) — the GUI method avoids that.
 
-### 9.4 Launch the kiosk page on boot
+### 9.4 Configure the touchscreen device
+
+`~/.config/labwc/rc.xml` needs a `<touch>` entry so labwc maps the touchscreen to the right output and passes real touch events through to apps (Chromium needs genuine touch protocol events, not synthesized mouse clicks, for tap/swipe to work):
+
+```xml
+<?xml version="1.0"?>
+<openbox_config xmlns="http://openbox.org/3.4/rc">
+	<touch deviceName="Goodix Capacitive TouchScreen" mapToOutput="DSI-2" mouseEmulation="no"/>
+</openbox_config>
+```
+
+Confirm the actual touchscreen device name with `cat /proc/bus/input/devices` and the actual output name with `wlr-randr` if they differ from the above (e.g. a different Touch Display revision). `mouseEmulation` must stay `"no"` (labwc's documented default) — it exists only as a workaround for touch-blind X11/XWayland apps, and forcing it `"yes"` would suppress real touch events for Chromium once it's running natively on Wayland (see 9.5 and the troubleshooting entry below).
+
+### 9.5 Launch the kiosk page on boot
 
 ```bash
 nano ~/.config/labwc/autostart
@@ -247,4 +260,8 @@ PATH=/home/mcdomx/.local/bin:/usr/local/bin:/usr/bin:/bin
 
 **Kiosk shows a connection-refused page after boot and never recovers** — `deploy/kiosk-autostart` waits for `/health` before launching Chromium, but if `awning-protector.service` is unusually slow to start (or crash-looping) the wait could still lose the race or the page could load before the app is fully ready. `pkill chromium` over SSH and it relaunches the wait-loop only on next boot — for now just re-run `chromium --kiosk http://localhost:8767/kiosk` manually, or `sudo reboot` once the service is confirmed healthy.
 
-**Touchscreen works at boot but nothing responds inside the kiosk window** — Touch input is reaching the desktop fine but Chromium isn't getting it, which means Chromium is rendering through XWayland instead of natively on `labwc`'s Wayland session; touch events get lost in that translation. `deploy/kiosk-autostart` launches Chromium with `--ozone-platform=wayland` to force native Wayland rendering, which fixes this. If it's still missing after pulling the latest `deploy/kiosk-autostart`, `pkill chromium` and let the autostart relaunch it on next boot (or `sudo reboot`).
+**Touchscreen works on the desktop but nothing responds inside the kiosk window** — Two things have to both be true for Chromium to receive touch:
+1. Chromium must render natively on Wayland, not fall back to XWayland (which has no native touch support). `deploy/kiosk-autostart` passes `--ozone-platform=wayland` for this — confirm it's actually taking effect with `ps aux | grep chromium` (the flag should appear on the renderer/gpu subprocess command lines too, not just the top-level one).
+2. `~/.config/labwc/rc.xml`'s `<touch>` entry must have `mouseEmulation="no"` (see 9.4). `mouseEmulation="yes"` makes labwc convert every touch event into a synthetic mouse event compositor-wide — useful for touch-blind XWayland apps, but it means a native-Wayland Chromium never receives real touch events at all, so taps and swipes silently do nothing. If `rc.xml` was set up before the `--ozone-platform=wayland` fix landed, it may still have `mouseEmulation="yes"` as a leftover XWayland-era workaround.
+
+After fixing either, log out/in or `sudo reboot` so labwc re-reads `rc.xml` and Chromium relaunches with the flag.
