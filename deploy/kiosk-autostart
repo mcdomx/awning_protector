@@ -8,6 +8,11 @@
 # load (and get stuck on) a connection-refused page.
 while ! curl -sf http://localhost:8767/health >/dev/null 2>&1; do sleep 1; done
 
+# Without --ozone-platform=wayland, Chromium falls back to XWayland under
+# labwc — touch events get lost in that translation layer, so the kiosk
+# window never receives them even though touch works fine elsewhere on the
+# desktop.
 chromium --kiosk --noerrdialogs --disable-infobars --no-first-run \
   --enable-features=OverlayScrollbar --start-maximized \
+  --ozone-platform=wayland \
   http://localhost:8767/kiosk &
