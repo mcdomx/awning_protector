@@ -21,6 +21,3 @@ matplotlib = "*"
 pytest = "*"
 pytest-asyncio = "*"
 respx = "*"
-
-[requires]
-python_version = "3.9"
