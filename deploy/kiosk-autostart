@@ -1,0 +1,13 @@
+# Awning Protector kiosk boot screen.
+# Append this block to ~/.config/labwc/autostart on the Pi — see README-PI.md
+# "Kiosk Boot Mode". Do not overwrite the file; labwc's default autostart
+# already starts the panel/wallpaper and other desktop pieces.
+
+# Boot races the awning-protector systemd service against desktop autologin —
+# wait for the app to answer before launching the browser so Chromium doesn't
+# load (and get stuck on) a connection-refused page.
+while ! curl -sf http://localhost:8767/health >/dev/null 2>&1; do sleep 1; done
+
+chromium --kiosk --noerrdialogs --disable-infobars --no-first-run \
+  --enable-features=OverlayScrollbar --start-maximized \
+  http://localhost:8767/kiosk &

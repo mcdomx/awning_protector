@@ -36,8 +36,18 @@ static/
   app.js               # SSE consumer, wind compass SVG, config UI, AI status panel
   automation_log.html  # Filterable/sortable automation log
   weather_log.html     # Filterable/sortable weather log
+  kiosk.html            # Touch kiosk dashboard, fixed 720x1280 (Pi Touch Display 2)
+  kiosk.css             # Kiosk styles; drops decorative padding at exact 720x1280 viewport
+  kiosk.js              # Kiosk state/rendering, swipeable screens, QR code linking to LAN hostname
 watchdog.py      # Standalone app-failure watchdog (polls /health, retracts on timeout)
 main.py          # uvicorn entry point (port 8767)
+deploy/
+  awning-protector.service  # systemd unit for production Pi deployment
+  awning-watchdog.service   # systemd unit for the watchdog, runs alongside the main service
+scripts/
+  cicd_update.py            # CI/CD polling script (stdlib only)
+  run_cicd.sh                # executable wrapper; sets ENVIRONMENT=production
+  run_cicd_boot.sh           # @reboot wrapper; bypasses CICD_INTERVAL_MINUTES
 ```
 
 ## API Endpoints
@@ -46,6 +56,7 @@ main.py          # uvicorn entry point (port 8767)
 |--------|------|--------|
 | GET | `/health` | Health check |
 | GET | `/` | Web dashboard |
+| GET | `/kiosk` | Touch kiosk dashboard (720×1280, Pi Touch Display 2) |
 | GET | `/weather/current` | Latest obs + rapid_wind + forecast snapshot |
 | GET | `/weather/stream` | SSE proxy to browsers |
 | GET | `/awning/status` | State + automation status |
@@ -148,6 +159,13 @@ docker compose up
 
 Dashboard: http://localhost:8767
 
+### Native (Raspberry Pi production)
+Runs as two systemd services (`awning-protector`, `awning-watchdog`) with auto-deploy on new
+commits via `scripts/cicd_update.py`, and boots straight into Chromium kiosk mode showing
+`/kiosk` on the Touch Display 2 (`deploy/kiosk-autostart`, appended to `~/.config/labwc/autostart`).
+See [README-PI.md](README-PI.md) for full setup and the
+[CI/CD](#cicd-raspberry-pi-production-only) section below for the auto-deploy mechanism.
+
 ## Testing
 ```bash
 pipenv run pytest tests/
@@ -162,8 +180,49 @@ APP_PORT=8767
 APP_URL=http://localhost:8767        # watchdog uses this; overridden in docker-compose
 ANTHROPIC_API_KEY=                   # required for AI deploy mode
 CLAUDE_MODEL=claude-haiku-4-5        # optional — override Claude model for AI evaluations
+CICD_DEPLOY_MODE=systemd             # Pi production only — systemd | docker
+CICD_GIT_BRANCH=main                 # Pi production only — branch to poll
+CICD_INTERVAL_MINUTES=15             # Pi production only — polling interval for CI/CD script
+CICD_SERVICE_NAME=awning-protector   # Pi production only — service restarted on deploy
 ```
 
 > On macOS, `host.docker.internal` resolves automatically.
 > On Linux, `extra_hosts: ["host.docker.internal:host-gateway"]` in docker-compose.yml handles this.
 > In Docker, `APP_URL` is set to `http://awning-protector:8767` by the compose file so the watchdog reaches the main container by service name.
+
+## CI/CD (Raspberry Pi production only)
+
+`scripts/cicd_update.py` polls GitHub for new commits on `CICD_GIT_BRANCH` and automatically
+deploys. It only runs when `ENVIRONMENT=production` is set — safe to run accidentally in dev.
+
+**Sudoers prerequisite** — the cron job restarts the service non-interactively, so this entry is
+required in `/etc/sudoers.d/awning-protector`:
+```
+mcdomx ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart awning-protector
+```
+
+**Cron entries (Pi, as `mcdomx`):**
+```
+* * * * * ENVIRONMENT=production /usr/bin/python3 /home/mcdomx/awning_protector/scripts/cicd_update.py
+@reboot /home/mcdomx/awning_protector/scripts/run_cicd_boot.sh
+```
+
+**Manual trigger:**
+```bash
+./scripts/run_cicd.sh
+```
+
+**Pause / resume without editing cron:**
+```bash
+touch .cicd_disabled   # pause
+rm .cicd_disabled      # resume
+```
+
+**Logs:** `logs/cicd.log`
+
+**Key behaviour:**
+- Cron fires every minute; the script gates on `CICD_INTERVAL_MINUTES` via `logs/.last_run` — most fires are silent no-ops
+- `@reboot` bypasses the interval gate so commits that landed while the Pi was off deploy immediately on next boot
+- On new commits: `git pull` → `pipenv install` → `systemctl restart awning-protector`
+- Only restarts `awning-protector`; if a deploy changes `watchdog.py`, restart `awning-watchdog` manually
+- Full setup steps: see [README-PI.md](README-PI.md)
