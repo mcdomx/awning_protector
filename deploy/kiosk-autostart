@@ -12,7 +12,11 @@ while ! curl -sf http://localhost:8767/health >/dev/null 2>&1; do sleep 1; done
 # labwc — touch events get lost in that translation layer, so the kiosk
 # window never receives them even though touch works fine elsewhere on the
 # desktop.
+# --password-store=basic skips Chromium's GNOME Keyring/Secret Service
+# integration, which otherwise pops a "create/unlock keyring" prompt on
+# first launch — a blank modal surface that grabs all touch input and
+# never resolves on a kiosk with no keyboard.
 chromium --kiosk --noerrdialogs --disable-infobars --no-first-run \
   --enable-features=OverlayScrollbar --start-maximized \
-  --ozone-platform=wayland \
+  --ozone-platform=wayland --password-store=basic \
   http://localhost:8767/kiosk &

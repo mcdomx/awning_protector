@@ -103,6 +103,7 @@ class WeatherClient:
             ]
             self.forecast_error = None
             self._last_forecast_fetch = datetime.now(timezone.utc)
+            await self._fan_out({"type": "forecast_updated", "data": {}})
         except Exception as exc:
             self.forecast_error = str(exc)
             logger.warning("Forecast fetch failed: %s", exc)

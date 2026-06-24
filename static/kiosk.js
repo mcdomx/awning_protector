@@ -352,6 +352,10 @@ function connectSSE() {
     const data = msg.data || {};
     if (type === 'obs_st') handleObs(data);
     else if (type === 'rapid_wind') handleWind(data);
+    else if (type === 'forecast_updated') {
+      loadHourlyForecast();
+      loadDailyForecast();
+    }
   };
 }
 
