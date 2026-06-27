@@ -122,8 +122,14 @@ function renderAwningHourlyStrip(entries) {
     const wind = e.wind_avg != null ? (e.wind_avg * MPH).toFixed(1) : '--';
     return `<div class="awning-hour-col">
       <span class="awning-hour-time">${time}</span>
-      <div class="stat-row">${windIcon}<span class="awning-hour-value">${wind}</span></div>
-      <div class="stat-row">${rainIcon}<span class="awning-hour-value">${pct}%</span></div>
+      <div class="awning-hour-group">
+        <span class="awning-hour-value">${wind}</span>
+        ${windIcon}
+      </div>
+      <div class="awning-hour-group awning-hour-group--rain">
+        <span class="awning-hour-value">${pct}%</span>
+        ${rainIcon}
+      </div>
     </div>`;
   }).join('');
 }

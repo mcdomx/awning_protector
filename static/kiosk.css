@@ -210,9 +210,13 @@ body {
 }
 .awn-weather-row .stat-value { font-size: 4.5rem; }
 .awn-weather-row .stat-unit { font-size: 1.2rem; }
-.awn-weather-row .stat-icon { width: 2.4rem; height: 2.4rem; }
+.awn-weather-row .stat-icon { width: 4.8rem; height: 4.8rem; }
+.awn-weather-row .badge { font-size: 1.6rem; padding: 0.6rem 1.5rem; }
 
 .awning-status { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; }
+.awning-status .badge { font-size: 1.6rem; padding: 0.6rem 1.5rem; }
+.awning-status .stat-label { font-size: 1.7rem; }
+.awning-status + .muted { font-size: 1.7rem; }
 .awning-controls-card { display: flex; flex-direction: row; gap: 0.75rem; }
 
 .awning-hourly-strip {
@@ -231,9 +235,20 @@ body {
   border: 1px solid var(--border);
   border-radius: 10px;
 }
-.awning-hour-time { font-size: 1.2rem; font-weight: 600; color: var(--muted); }
-.awning-hour-col .stat-icon { width: 1.8rem; height: 1.8rem; }
-.awning-hour-value { font-size: 1.5rem; font-weight: 600; }
+.awning-hour-time { font-size: 2.4rem; font-weight: 600; color: var(--muted); }
+.awning-hour-col .stat-icon { width: 3.6rem; height: 3.6rem; }
+.awning-hour-value { font-size: 3rem; font-weight: 600; }
+.awning-hour-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+.awning-hour-group--rain {
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+  margin-top: 0.25rem;
+}
 
 .btn-touch {
   display: block;
