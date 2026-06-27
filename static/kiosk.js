@@ -41,10 +41,13 @@ function tempUnitLabel() {
 function updateTempUnitUI() {
   const unitLabel = el('temp-unit-label');
   if (unitLabel) unitLabel.textContent = tempUnitLabel();
+  const awnUnitLabel = el('awn-temp-unit-label');
+  if (awnUnitLabel) awnUnitLabel.textContent = tempUnitLabel();
 
   if (state.airTempC != null) {
     const isC = (currentConfig.temp_unit || 'F') === 'C';
     setNum('air-temp', toDisplayTemp(state.airTempC), isC ? 1 : 0);
+    setNum('awn-air-temp', toDisplayTemp(state.airTempC), isC ? 1 : 0);
   }
 
   renderHourlyForecast(state.hourlyForecast);
@@ -81,7 +84,7 @@ function renderHourlyForecast(entries) {
     return;
   }
 
-  container.innerHTML = entries.slice(0, 8).map(e => {
+  container.innerHTML = entries.slice(0, 6).map(e => {
     const d = new Date(e.time);
     const h = d.getHours();
     const time = (h % 12 || 12) + (h >= 12 ? 'pm' : 'am');
@@ -159,7 +162,7 @@ function renderDailyForecast(entries) {
   }
 
   container.innerHTML = entries.map(e => {
-    const day = new Date(e.day_start_local).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+    const day = new Date(e.day_start_local).toLocaleDateString([], { weekday: 'short' });
     const high = toDisplayTemp(e.air_temp_high ?? null);
     const low  = toDisplayTemp(e.air_temp_low ?? null);
     const highStr = high != null ? `${Math.round(high)}°` : '--';
@@ -170,28 +173,25 @@ function renderDailyForecast(entries) {
       <span class="daily-day">${day}</span>
       <span class="daily-rain">${precip}</span>
       <span class="daily-temp">${highStr}&thinsp;/&thinsp;${lowStr}</span>
-      <span class="daily-conditions">${conditionIcon(cond)}<span>${cond}</span></span>
+      <span class="daily-conditions">${dailyConditionIcon(cond, e.precip_probability)}</span>
     </div>`;
   }).join('');
 }
 
-/* --- Condition icon lookup ---
-   The Tempest API only returns a free-text `conditions` description (no
-   structured icon code), so icon selection is done by keyword match. */
-const CONDITION_ICONS = [
-  [/thunder|storm/i, '<svg class="stat-icon" viewBox="0 0 24 24"><path d="M19.35 8.04A7.49 7.49 0 0 0 12 2a7.49 7.49 0 0 0-7.35 6.04A5.5 5.5 0 0 0 6 19h13a5.5 5.5 0 0 0 .35-10.96z" stroke="currentColor" stroke-width="2" fill="none"/><path d="M13 18l-3 2h3l-2 2" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>'],
-  [/snow|flurries|sleet/i, '<svg class="stat-icon" viewBox="0 0 24 24"><path d="M19.35 8.04A7.49 7.49 0 0 0 12 2a7.49 7.49 0 0 0-7.35 6.04A5.5 5.5 0 0 0 6 19h13a5.5 5.5 0 0 0 .35-10.96z" stroke="currentColor" stroke-width="2" fill="none"/><g stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="8" y1="20" x2="8" y2="22"/><line x1="7" y1="21" x2="9" y2="21"/><line x1="16" y1="20" x2="16" y2="22"/><line x1="15" y1="21" x2="17" y2="21"/></g></svg>'],
-  [/rain|shower|drizzle/i, '<svg class="stat-icon" viewBox="0 0 24 24"><path d="M19.35 8.04A7.49 7.49 0 0 0 12 2a7.49 7.49 0 0 0-7.35 6.04A5.5 5.5 0 0 0 6 19h13a5.5 5.5 0 0 0 .35-10.96z" stroke="currentColor" stroke-width="2" fill="none"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="20" x2="8" y2="22"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="16" y1="20" x2="16" y2="22"/></g></svg>'],
-  [/fog|mist|haze/i, '<svg class="stat-icon" viewBox="0 0 24 24"><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="16" x2="20" y2="16"/></g></svg>'],
-  [/wind/i, '<svg class="stat-icon" viewBox="0 0 24 24"><path d="M3 8h11a3 3 0 1 0-3-3" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M3 14h15a3 3 0 1 1-3 3" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>'],
-  [/cloud|overcast/i, '<svg class="stat-icon" viewBox="0 0 24 24"><path d="M19 18H6a4 4 0 1 1 .9-7.93A5.5 5.5 0 0 1 21 9.5 3.5 3.5 0 0 1 19 18z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/></svg>'],
-  [/clear|sunny/i, '<svg class="stat-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="2" fill="none"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="4.9" y1="4.9" x2="6.3" y2="6.3"/><line x1="17.7" y1="17.7" x2="19.1" y2="19.1"/><line x1="4.9" y1="19.1" x2="6.3" y2="17.7"/><line x1="17.7" y1="6.3" x2="19.1" y2="4.9"/></g></svg>'],
-];
-const CONDITION_ICON_DEFAULT = CONDITION_ICONS[5][1]; // cloud as fallback
-
-function conditionIcon(text) {
-  const match = CONDITION_ICONS.find(([re]) => re.test(text));
-  return match ? match[1] : CONDITION_ICON_DEFAULT;
+/* --- Daily condition icon (5 icons, priority order) ---
+   Priority: thunder > snow >50% > rain >50% > mostly cloudy/overcast > sunny */
+function dailyConditionIcon(cond, precipProbability) {
+  const c = cond || '';
+  const pct = precipProbability ?? 0;
+  if (/thunder|storm/i.test(c))
+    return '<svg class="stat-icon" viewBox="0 0 24 24" style="color:#f59e0b"><path d="M13 2 3 14h9l-1 8 10-12h-8z" fill="currentColor"/></svg>';
+  if (/snow|sleet|flurr/i.test(c) && pct > 50)
+    return '<svg class="stat-icon" viewBox="0 0 24 24" style="color:#e2e8f0"><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="3" x2="12" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/><line x1="18.4" y1="5.6" x2="5.6" y2="18.4"/></g></svg>';
+  if (pct > 50)
+    return '<svg class="stat-icon" viewBox="0 0 24 24" style="color:#3b82f6"><path d="M12 3c4 5 6 8 6 11a6 6 0 1 1-12 0c0-3 2-6 6-11z" fill="currentColor"/></svg>';
+  if (/mostly cloud|overcast/i.test(c))
+    return '<svg class="stat-icon" viewBox="0 0 24 24" style="color:#3b82f6"><path d="M19 18H6a4 4 0 1 1 .9-7.93A5.5 5.5 0 0 1 21 9.5 3.5 3.5 0 0 1 19 18z" fill="currentColor" stroke-linejoin="round"/></svg>';
+  return '<svg class="stat-icon" viewBox="0 0 24 24" style="color:#f59e0b"><circle cx="12" cy="12" r="4" fill="currentColor"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="4.9" y1="4.9" x2="6.3" y2="6.3"/><line x1="17.7" y1="17.7" x2="19.1" y2="19.1"/><line x1="4.9" y1="19.1" x2="6.3" y2="17.7"/><line x1="17.7" y1="6.3" x2="19.1" y2="4.9"/></g></svg>';
 }
 
 async function loadDailyForecast() {
@@ -319,7 +319,9 @@ function handleObs(data) {
   setNumIds(['wind-gust', 'awn-wind-gust'], state.windGustMph);
   const isC = (currentConfig.temp_unit || 'F') === 'C';
   setNum('air-temp', toDisplayTemp(state.airTempC), isC ? 1 : 0);
+  setNum('awn-air-temp', toDisplayTemp(state.airTempC), isC ? 1 : 0);
   setNum('uv-index', state.uvIndex);
+  setNum('awn-uv-index', state.uvIndex);
   setNum('lux', state.lux, 0);
   updatePrecipBadge(state.precipType, state.rainMm);
 }
