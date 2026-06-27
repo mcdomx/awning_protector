@@ -117,7 +117,7 @@ def deploy_systemd() -> None:
     if not service_name:
         raise RuntimeError("CICD_SERVICE_NAME must be set in .env when CICD_DEPLOY_MODE=systemd")
     install_dependencies()
-    _run([SYSTEMCTL, "restart", service_name])
+    _run(["sudo", SYSTEMCTL, "restart", service_name])
     logger.info("Service '%s' restarted.", service_name)
 
 
