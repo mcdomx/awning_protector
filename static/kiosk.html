@@ -191,12 +191,10 @@
           <label class="automation-toggle">
             <input type="checkbox" id="cfg-ai-enabled" onchange="saveAISettings()" />
             <span class="card-title">AI Deploy Enabled</span>
+            <span id="ai-running-badge" class="badge badge-unknown">Idle</span>
           </label>
 
           <div class="ai-status-grid">
-            <span class="ai-status-label">Status</span>
-            <span id="ai-running-badge" class="badge badge-unknown">Idle</span>
-
             <div class="ai-eval-row">
               <div class="ai-eval-group">
                 <span class="ai-status-label">Last eval</span>

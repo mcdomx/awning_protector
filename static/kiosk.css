@@ -530,6 +530,8 @@ body {
 #screen-ai .ai-status-grid { gap: 0.75rem 1rem; margin-bottom: 1rem; }
 #screen-ai .automation-toggle .card-title { font-size: 1.5rem; }
 #screen-ai .automation-toggle input[type="checkbox"] { width: 36px; height: 36px; }
+#screen-ai .automation-toggle #ai-running-badge { margin-left: auto; }
+#screen-ai .kiosk-btn-row .btn-touch { font-size: 1.3rem; padding: 1.1rem; min-height: 80px; }
 #screen-ai .ai-report-pre { font-size: 1.05rem; }
 #screen-ai .field-row label { font-size: 1.2rem; }
 #screen-ai .radio-pill { font-size: 1.3rem; min-height: 80px; }
