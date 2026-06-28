@@ -382,15 +382,15 @@ function handleWind(data) {
 }
 
 function connectSSE() {
-  const statusBadge = el('connection-status');
+  const statusBadges = document.querySelectorAll('.connection-status');
   const es = new EventSource('/weather/stream');
 
   es.onopen = () => {
-    if (statusBadge) { statusBadge.textContent = 'Live'; statusBadge.className = 'badge badge-ok'; }
+    statusBadges.forEach(b => { b.textContent = 'Live'; b.className = 'badge badge-ok connection-status'; });
   };
 
   es.onerror = () => {
-    if (statusBadge) { statusBadge.textContent = 'Reconnecting…'; statusBadge.className = 'badge badge-warn'; }
+    statusBadges.forEach(b => { b.textContent = 'Reconnecting…'; b.className = 'badge badge-warn connection-status'; });
   };
 
   es.onmessage = (evt) => {
