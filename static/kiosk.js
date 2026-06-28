@@ -253,6 +253,30 @@ async function refreshAwningStatus() {
   if (resp.ok) updateAwningStatus(await resp.json());
 }
 
+/* --- AI Settings stepper helpers --- */
+function _parseTimeStr(timeStr) {
+  const m = /^(\d{1,2})(AM|PM)$/i.exec((timeStr || '').trim());
+  return m ? { hour: parseInt(m[1], 10), ampm: m[2].toUpperCase() } : { hour: 8, ampm: 'AM' };
+}
+
+function _buildTimeStr(hourId, ampmId) {
+  const hourEl = el(hourId);
+  const ampmEl = el(ampmId);
+  return (hourEl && ampmEl) ? `${hourEl.value}${ampmEl.value}` : '';
+}
+
+function stepValue(id, delta, min, max, decimals) {
+  const hiddenEl = el(id);
+  const displayEl = el(id + '-display');
+  if (!hiddenEl) return;
+  let val = Math.round((parseFloat(hiddenEl.value || 0) + delta) * 1000) / 1000;
+  if (min != null) val = Math.max(min, val);
+  if (max != null) val = Math.min(max, val);
+  hiddenEl.value = val;
+  if (displayEl) displayEl.textContent = decimals > 0 ? val.toFixed(decimals) : String(val);
+  saveAISettings();
+}
+
 /* --- Config (curated AI settings) --- */
 async function loadConfig() {
   const resp = await fetch('/config');
@@ -260,16 +284,32 @@ async function loadConfig() {
   currentConfig = await resp.json();
   const ai = currentConfig.ai || {};
   el('cfg-ai-enabled').checked = !!ai.ai_enabled;
-  el('cfg-ai-wind').value = ai.current_wind_threshold_mph ?? 3.0;
-  el('cfg-ai-forecast-wind').value = ai.forecasted_wind_threshold_mph ?? 8.0;
-  el('cfg-ai-forecast-hours').value = ai.forecast_outlook_hours ?? 2;
-  el('cfg-ai-min-temp').value = ai.min_deployment_temp_f ?? 65.0;
-  el('cfg-ai-earliest').value = ai.earliest_auto_deployment ?? '8AM';
-  el('cfg-ai-latest').value = ai.latest_auto_deployment ?? '6PM';
-  el('cfg-ai-max-deploy').value = ai.max_deployment_seconds ?? 5;
-  el('cfg-ai-min-deploy').value = ai.min_deployment_seconds ?? 2;
-  el('cfg-ai-min-interval').value = Math.round((ai.min_eval_interval_seconds ?? 300) / 60);
-  el('cfg-ai-max-interval').value = Math.round((ai.max_eval_interval_seconds ?? 4500) / 60);
+
+  const stepperDefs = [
+    { id: 'cfg-ai-wind',           val: ai.current_wind_threshold_mph ?? 3.0,                       decimals: 1 },
+    { id: 'cfg-ai-forecast-wind',  val: ai.forecasted_wind_threshold_mph ?? 8.0,                    decimals: 1 },
+    { id: 'cfg-ai-forecast-hours', val: ai.forecast_outlook_hours ?? 2,                             decimals: 0 },
+    { id: 'cfg-ai-min-temp',       val: ai.min_deployment_temp_f ?? 65,                             decimals: 0 },
+    { id: 'cfg-ai-max-deploy',     val: ai.max_deployment_seconds ?? 5,                             decimals: 0 },
+    { id: 'cfg-ai-min-deploy',     val: ai.min_deployment_seconds ?? 2,                             decimals: 0 },
+    { id: 'cfg-ai-min-interval',   val: Math.round((ai.min_eval_interval_seconds ?? 300) / 60),     decimals: 0 },
+    { id: 'cfg-ai-max-interval',   val: Math.round((ai.max_eval_interval_seconds ?? 4500) / 60),    decimals: 0 },
+  ];
+  for (const { id, val, decimals } of stepperDefs) {
+    const hiddenEl = el(id);
+    const displayEl = el(id + '-display');
+    if (hiddenEl) hiddenEl.value = val;
+    if (displayEl) displayEl.textContent = decimals > 0 ? Number(val).toFixed(decimals) : String(val);
+  }
+
+  const earliest = _parseTimeStr(ai.earliest_auto_deployment ?? '8AM');
+  const eHour = el('cfg-ai-earliest-hour'); if (eHour) eHour.value = String(earliest.hour);
+  const eAmpm = el('cfg-ai-earliest-ampm'); if (eAmpm) eAmpm.value = earliest.ampm;
+
+  const latest = _parseTimeStr(ai.latest_auto_deployment ?? '6PM');
+  const lHour = el('cfg-ai-latest-hour'); if (lHour) lHour.value = String(latest.hour);
+  const lAmpm = el('cfg-ai-latest-ampm'); if (lAmpm) lAmpm.value = latest.ampm;
+
   updateTempUnitUI();
 }
 
@@ -280,8 +320,8 @@ async function saveAISettings() {
   currentConfig.ai.forecasted_wind_threshold_mph = parseFloat(el('cfg-ai-forecast-wind').value);
   currentConfig.ai.forecast_outlook_hours = parseInt(el('cfg-ai-forecast-hours').value, 10);
   currentConfig.ai.min_deployment_temp_f = parseFloat(el('cfg-ai-min-temp').value);
-  currentConfig.ai.earliest_auto_deployment = el('cfg-ai-earliest').value.trim();
-  currentConfig.ai.latest_auto_deployment = el('cfg-ai-latest').value.trim();
+  currentConfig.ai.earliest_auto_deployment = _buildTimeStr('cfg-ai-earliest-hour', 'cfg-ai-earliest-ampm');
+  currentConfig.ai.latest_auto_deployment = _buildTimeStr('cfg-ai-latest-hour', 'cfg-ai-latest-ampm');
   currentConfig.ai.max_deployment_seconds = parseInt(el('cfg-ai-max-deploy').value, 10);
   currentConfig.ai.min_deployment_seconds = parseInt(el('cfg-ai-min-deploy').value, 10);
   currentConfig.ai.min_eval_interval_seconds = parseInt(el('cfg-ai-min-interval').value, 10) * 60;

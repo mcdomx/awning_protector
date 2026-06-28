@@ -290,54 +290,139 @@
           <span id="save-status-guidance" class="muted"></span>
         </div>
 
-        <div class="kiosk-card">
-          <h2>AI Settings</h2>
-          <div class="field-row">
-            <label for="cfg-ai-wind">Max current wind (mph)</label>
-            <input type="number" id="cfg-ai-wind" min="0" max="60" step="0.5" onchange="saveAISettings()" />
-          </div>
-          <div class="field-row">
-            <label for="cfg-ai-forecast-wind">Max forecast wind (mph)</label>
-            <input type="number" id="cfg-ai-forecast-wind" min="0" max="60" step="0.5" onchange="saveAISettings()" />
-          </div>
-          <div class="field-row">
-            <label for="cfg-ai-forecast-hours">Forecast outlook (hours)</label>
-            <input type="number" id="cfg-ai-forecast-hours" min="1" max="24" step="1" onchange="saveAISettings()" />
-          </div>
-          <div class="field-row">
-            <label for="cfg-ai-min-temp">Min temperature (°F)</label>
-            <input type="number" id="cfg-ai-min-temp" min="0" max="120" step="1" onchange="saveAISettings()" />
-          </div>
-          <div class="field-row">
-            <label for="cfg-ai-earliest">Earliest deployment</label>
-            <input type="text" id="cfg-ai-earliest" placeholder="e.g. 8AM" onchange="saveAISettings()" />
-          </div>
-          <div class="field-row">
-            <label for="cfg-ai-latest">Latest deployment</label>
-            <input type="text" id="cfg-ai-latest" placeholder="e.g. 6PM" onchange="saveAISettings()" />
-          </div>
-          <div class="field-row">
-            <label for="cfg-ai-max-deploy">Max deploy duration (s)</label>
-            <input type="number" id="cfg-ai-max-deploy" min="1" max="60" step="1" onchange="saveAISettings()" />
-          </div>
-          <div class="field-row">
-            <label for="cfg-ai-min-deploy">Min deploy duration (s)</label>
-            <input type="number" id="cfg-ai-min-deploy" min="1" max="60" step="1" onchange="saveAISettings()" />
-          </div>
-          <div class="field-row">
-            <label for="cfg-ai-min-interval">Min eval interval (min)</label>
-            <input type="number" id="cfg-ai-min-interval" min="1" max="120" step="1" onchange="saveAISettings()" />
-          </div>
-          <div class="field-row">
-            <label for="cfg-ai-max-interval">Max eval interval (min)</label>
-            <input type="number" id="cfg-ai-max-interval" min="1" max="240" step="1" onchange="saveAISettings()" />
-          </div>
-          <span id="save-status-ai" class="muted"></span>
-        </div>
       </div>
     </section>
 
-    <!-- Screen 4: QR -->
+    <!-- Screen 4: AI Settings -->
+    <section class="screen" id="screen-ai-settings">
+      <div class="screen-scroll">
+        <h1 class="screen-title">AI Settings</h1>
+
+        <div class="kiosk-card">
+          <h2>Wind Thresholds</h2>
+          <div class="stepper-row">
+            <div class="stepper-label">Max current wind <span class="stepper-unit">mph</span></div>
+            <div class="stepper-control">
+              <button class="btn-stepper" onclick="stepValue('cfg-ai-wind', -0.5, 0, 60, 1)">−</button>
+              <span class="stepper-value" id="cfg-ai-wind-display">--</span>
+              <input type="hidden" id="cfg-ai-wind" />
+              <button class="btn-stepper" onclick="stepValue('cfg-ai-wind', 0.5, 0, 60, 1)">+</button>
+            </div>
+          </div>
+          <div class="stepper-row">
+            <div class="stepper-label">Max forecast wind <span class="stepper-unit">mph</span></div>
+            <div class="stepper-control">
+              <button class="btn-stepper" onclick="stepValue('cfg-ai-forecast-wind', -0.5, 0, 60, 1)">−</button>
+              <span class="stepper-value" id="cfg-ai-forecast-wind-display">--</span>
+              <input type="hidden" id="cfg-ai-forecast-wind" />
+              <button class="btn-stepper" onclick="stepValue('cfg-ai-forecast-wind', 0.5, 0, 60, 1)">+</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="kiosk-card">
+          <h2>Conditions</h2>
+          <div class="stepper-row">
+            <div class="stepper-label">Forecast outlook <span class="stepper-unit">hours</span></div>
+            <div class="stepper-control">
+              <button class="btn-stepper" onclick="stepValue('cfg-ai-forecast-hours', -1, 1, 24, 0)">−</button>
+              <span class="stepper-value" id="cfg-ai-forecast-hours-display">--</span>
+              <input type="hidden" id="cfg-ai-forecast-hours" />
+              <button class="btn-stepper" onclick="stepValue('cfg-ai-forecast-hours', 1, 1, 24, 0)">+</button>
+            </div>
+          </div>
+          <div class="stepper-row">
+            <div class="stepper-label">Min temperature <span class="stepper-unit">°F</span></div>
+            <div class="stepper-control">
+              <button class="btn-stepper" onclick="stepValue('cfg-ai-min-temp', -1, 0, 120, 0)">−</button>
+              <span class="stepper-value" id="cfg-ai-min-temp-display">--</span>
+              <input type="hidden" id="cfg-ai-min-temp" />
+              <button class="btn-stepper" onclick="stepValue('cfg-ai-min-temp', 1, 0, 120, 0)">+</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="kiosk-card">
+          <h2>Schedule</h2>
+          <div class="stepper-row stepper-row--time">
+            <div class="stepper-label">Earliest deployment</div>
+            <div class="time-select-row">
+              <select id="cfg-ai-earliest-hour" class="time-select" onchange="saveAISettings()">
+                <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+                <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+                <option value="7">7</option><option value="8">8</option><option value="9">9</option>
+                <option value="10">10</option><option value="11">11</option><option value="12">12</option>
+              </select>
+              <select id="cfg-ai-earliest-ampm" class="time-select" onchange="saveAISettings()">
+                <option value="AM">AM</option><option value="PM">PM</option>
+              </select>
+            </div>
+          </div>
+          <div class="stepper-row stepper-row--time">
+            <div class="stepper-label">Latest deployment</div>
+            <div class="time-select-row">
+              <select id="cfg-ai-latest-hour" class="time-select" onchange="saveAISettings()">
+                <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+                <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+                <option value="7">7</option><option value="8">8</option><option value="9">9</option>
+                <option value="10">10</option><option value="11">11</option><option value="12">12</option>
+              </select>
+              <select id="cfg-ai-latest-ampm" class="time-select" onchange="saveAISettings()">
+                <option value="AM">AM</option><option value="PM">PM</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="kiosk-card">
+          <h2>Deploy Duration</h2>
+          <div class="stepper-row">
+            <div class="stepper-label">Maximum duration <span class="stepper-unit">seconds</span></div>
+            <div class="stepper-control">
+              <button class="btn-stepper" onclick="stepValue('cfg-ai-max-deploy', -1, 1, 60, 0)">−</button>
+              <span class="stepper-value" id="cfg-ai-max-deploy-display">--</span>
+              <input type="hidden" id="cfg-ai-max-deploy" />
+              <button class="btn-stepper" onclick="stepValue('cfg-ai-max-deploy', 1, 1, 60, 0)">+</button>
+            </div>
+          </div>
+          <div class="stepper-row">
+            <div class="stepper-label">Minimum duration <span class="stepper-unit">seconds</span></div>
+            <div class="stepper-control">
+              <button class="btn-stepper" onclick="stepValue('cfg-ai-min-deploy', -1, 1, 60, 0)">−</button>
+              <span class="stepper-value" id="cfg-ai-min-deploy-display">--</span>
+              <input type="hidden" id="cfg-ai-min-deploy" />
+              <button class="btn-stepper" onclick="stepValue('cfg-ai-min-deploy', 1, 1, 60, 0)">+</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="kiosk-card">
+          <h2>Eval Intervals</h2>
+          <div class="stepper-row">
+            <div class="stepper-label">Minimum interval <span class="stepper-unit">minutes</span></div>
+            <div class="stepper-control">
+              <button class="btn-stepper" onclick="stepValue('cfg-ai-min-interval', -1, 1, 120, 0)">−</button>
+              <span class="stepper-value" id="cfg-ai-min-interval-display">--</span>
+              <input type="hidden" id="cfg-ai-min-interval" />
+              <button class="btn-stepper" onclick="stepValue('cfg-ai-min-interval', 1, 1, 120, 0)">+</button>
+            </div>
+          </div>
+          <div class="stepper-row">
+            <div class="stepper-label">Maximum interval <span class="stepper-unit">minutes</span></div>
+            <div class="stepper-control">
+              <button class="btn-stepper" onclick="stepValue('cfg-ai-max-interval', -1, 1, 240, 0)">−</button>
+              <span class="stepper-value" id="cfg-ai-max-interval-display">--</span>
+              <input type="hidden" id="cfg-ai-max-interval" />
+              <button class="btn-stepper" onclick="stepValue('cfg-ai-max-interval', 1, 1, 240, 0)">+</button>
+            </div>
+          </div>
+          <span id="save-status-ai" class="muted ai-save-status"></span>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Screen 5: QR -->
     <section class="screen" id="screen-qr">
       <div class="screen-scroll">
         <h1 class="screen-title">Open Dashboard</h1>
@@ -357,6 +442,7 @@
     <span class="dot" data-screen="1"></span>
     <span class="dot" data-screen="2"></span>
     <span class="dot" data-screen="3"></span>
+    <span class="dot" data-screen="4"></span>
   </div>
   </div>
 
