@@ -103,10 +103,23 @@ def git_pull(branch: str) -> None:
     logger.info("git pull: %s", out)
 
 
+_SEARCH_PATH = ":".join([
+    os.environ.get("PATH", ""),
+    "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin",
+    "/home/mcdomx/.local/bin",
+])
+
+
+def _find_bin(name: str) -> str:
+    """Locate an executable, extending PATH with common install dirs missed by cron."""
+    found = shutil.which(name, path=_SEARCH_PATH)
+    if not found:
+        raise RuntimeError(f"{name} not found on PATH")
+    return found
+
+
 def install_dependencies() -> None:
-    pipenv_bin = shutil.which("pipenv")
-    if not pipenv_bin:
-        raise RuntimeError("pipenv not found on PATH")
+    pipenv_bin = _find_bin("pipenv")
     env = {**os.environ, "PIPENV_VENV_IN_PROJECT": "1"}
     out = _run([pipenv_bin, "install"], cwd=PROJECT_ROOT, env=env)
     logger.info("pipenv install: %s", out or "ok")
@@ -123,9 +136,7 @@ def deploy_systemd() -> None:
 
 def deploy_docker() -> None:
     compose_file = load_env_var("CICD_COMPOSE_FILE", "docker-compose.yml")
-    docker_bin = shutil.which("docker")
-    if not docker_bin:
-        raise RuntimeError("docker not found on PATH")
+    docker_bin = _find_bin("docker")
     # The image is built locally from the Dockerfile (no registry to `pull`
     # from), so the container only picks up new commits if rebuilt here.
     out = _run([docker_bin, "compose", "-f", compose_file, "up", "-d", "--build"], cwd=PROJECT_ROOT)
