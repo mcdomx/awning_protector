@@ -197,11 +197,16 @@
             <span class="ai-status-label">Status</span>
             <span id="ai-running-badge" class="badge badge-unknown">Idle</span>
 
-            <span class="ai-status-label">Last evaluated</span>
-            <span id="ai-last-eval-time" class="muted">--</span>
-
-            <span class="ai-status-label">Next evaluation</span>
-            <span id="ai-next-eval-countdown" class="muted">--</span>
+            <div class="ai-eval-row">
+              <div class="ai-eval-group">
+                <span class="ai-status-label">Last eval</span>
+                <span id="ai-last-eval-time" class="muted">--</span>
+              </div>
+              <div class="ai-eval-group">
+                <span class="ai-status-label">Next eval</span>
+                <span id="ai-next-eval-countdown" class="muted">--</span>
+              </div>
+            </div>
           </div>
 
           <button class="btn-touch btn-save" onclick="aiEvaluateNow()" id="ai-evaluate-btn">Evaluate Now</button>
@@ -259,24 +264,23 @@
             </div>
           </div>
 
-          <div class="field-row">
+          <div class="field-row field-row-stack">
             <label>Expires at</label>
-            <div class="expiry-selects">
-              <select id="cfg-ai-guidance-expiry-hour">
+            <div class="time-select-row">
+              <select id="cfg-ai-guidance-expiry-hour" class="time-select">
                 <option value="">hh</option>
                 <option>1</option><option>2</option><option>3</option><option>4</option>
                 <option>5</option><option>6</option><option>7</option><option>8</option>
                 <option>9</option><option>10</option><option>11</option><option>12</option>
               </select>
-              <span>:</span>
-              <select id="cfg-ai-guidance-expiry-min">
+              <select id="cfg-ai-guidance-expiry-min" class="time-select">
                 <option value="">mm</option>
                 <option value="0">00</option><option value="5">05</option><option value="10">10</option>
                 <option value="15">15</option><option value="20">20</option><option value="25">25</option>
                 <option value="30">30</option><option value="35">35</option><option value="40">40</option>
                 <option value="45">45</option><option value="50">50</option><option value="55">55</option>
               </select>
-              <select id="cfg-ai-guidance-expiry-ampm">
+              <select id="cfg-ai-guidance-expiry-ampm" class="time-select">
                 <option value="">--</option>
                 <option>AM</option>
                 <option>PM</option>

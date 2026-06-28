@@ -310,6 +310,25 @@ body {
 }
 .ai-status-label { font-size: 0.85rem; color: var(--muted); white-space: nowrap; }
 
+.ai-eval-row {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: flex-start;
+}
+
+.ai-eval-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+}
+
+.ai-eval-group + .ai-eval-group {
+  border-left: 1px solid var(--border);
+  padding-left: 1.25rem;
+  margin-left: 1.25rem;
+}
+
 .ai-report-pre {
   background: var(--bg);
   border: 1px solid var(--border);
@@ -497,6 +516,29 @@ body {
   text-align: center;
   margin-top: 0.75rem;
   font-size: 1rem;
+}
+
+/* AI Automation screen — larger fonts for readability on physical display */
+#screen-ai .kiosk-card h2 { font-size: 1.2rem; }
+#screen-ai .muted { font-size: 1.1rem; }
+#screen-ai .badge { font-size: 1.1rem; padding: 0.4rem 1rem; }
+#screen-ai .ai-status-label { font-size: 1.2rem; }
+#screen-ai .ai-status-grid { gap: 0.75rem 1rem; margin-bottom: 1rem; }
+#screen-ai .automation-toggle .card-title { font-size: 1.5rem; }
+#screen-ai .automation-toggle input[type="checkbox"] { width: 36px; height: 36px; }
+#screen-ai .ai-report-pre { font-size: 1.05rem; }
+#screen-ai .field-row label { font-size: 1.2rem; }
+#screen-ai .radio-pill { font-size: 1.3rem; min-height: 80px; }
+#screen-ai .radio-pill-sub { font-size: 0.85rem; }
+
+/* Ensure .time-select sizing wins over .field-row select inside the guidance card */
+.field-row .time-select {
+  font-size: 2.2rem;
+  font-weight: 600;
+  min-height: 76px;
+  width: auto;
+  text-align: center;
+  padding: 0.9rem 0.75rem;
 }
 
 /* QR code */
