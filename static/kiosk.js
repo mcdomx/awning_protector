@@ -667,6 +667,26 @@ function renderQRCode() {
   container.innerHTML = qr.createSvgTag({ cellSize: 6, margin: 4 });
 }
 
+/* --- Responsive scaling ---
+ * The kiosk is laid out at a fixed 720x1280 (Pi Touch Display 2 native
+ * resolution). On devices with a smaller viewport — phones on the LAN in
+ * particular — scale the whole frame down to fit so nothing is clipped and
+ * the page never needs to scroll/zoom.
+ */
+function applyKioskScale() {
+  const frame = document.querySelector('.kiosk-frame');
+  if (!frame) return;
+  const bodyStyle = getComputedStyle(document.body);
+  const padX = parseFloat(bodyStyle.paddingLeft) + parseFloat(bodyStyle.paddingRight);
+  const padY = parseFloat(bodyStyle.paddingTop) + parseFloat(bodyStyle.paddingBottom);
+  const availW = window.innerWidth - padX;
+  const availH = window.innerHeight - padY;
+  const scale = Math.min(1, availW / 720, availH / 1280);
+  frame.style.transform = `scale(${scale})`;
+}
+window.addEventListener('resize', applyKioskScale);
+window.addEventListener('orientationchange', applyKioskScale);
+
 /* --- Swipe dot indicator --- */
 function setupScreenDots() {
   const screens = el('screens');
@@ -685,6 +705,7 @@ function setupScreenDots() {
 
 /* --- Boot --- */
 (async () => {
+  applyKioskScale();
   setupScreenDots();
   try { renderQRCode(); } catch (e) { console.error('renderQRCode failed', e); }
   try { await loadConfig(); } catch (e) { console.error('loadConfig failed', e); }

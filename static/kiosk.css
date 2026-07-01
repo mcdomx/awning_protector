@@ -38,7 +38,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   padding: 2rem;
 }
 
@@ -62,6 +63,10 @@ body {
   box-shadow: 0 0 0 1px var(--border), 0 30px 60px rgba(0,0,0,0.5);
   overflow: hidden;
   touch-action: pan-x pan-y;
+  /* Scale factor is computed in kiosk.js (applyKioskScale) from the available
+     viewport so the fixed 720x1280 layout fits any device — phones included —
+     without clipping or requiring page scroll/zoom. */
+  transform: scale(1);
 }
 
 .screens {
