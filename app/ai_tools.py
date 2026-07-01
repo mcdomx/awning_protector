@@ -24,14 +24,24 @@ def _normalize_action(action: str) -> str:
 
 
 def deploy_awning(seconds: int = 3) -> str:
+    effective = awning_client.effective_timed_deploy_s(seconds)
+    if effective is None:
+        remaining = awning_client.remaining_deploy_s() or 0
+        return f"Awning already deployed with {remaining}s remaining; no extension needed."
+
     resp = requests.get(
         f"{AWNING_URL}/awning/deploy/timed",
-        params={"seconds": seconds},
+        params={"seconds": effective},
         timeout=30,
     )
     resp.raise_for_status()
-    awning_client.current_state = "deployed"
-    return f"Deployed awning by {seconds} seconds."
+
+    if effective < seconds:
+        awning_client.extend_timed_deploy(seconds)
+        elapsed = seconds - effective
+        return f"Deployed awning for {effective}s (extending total to {seconds}s; {elapsed}s already elapsed)."
+    awning_client.record_timed_deploy(seconds)
+    return f"Deployed awning for {seconds}s."
 
 
 def retract_awning(seconds: int = None) -> str:
@@ -43,10 +53,14 @@ def retract_awning(seconds: int = None) -> str:
         )
         resp.raise_for_status()
         awning_client.current_state = "undeployed"
+        awning_client._deploy_start_at = None
+        awning_client._deploy_duration_s = None
         return f"Retracted awning by {seconds} seconds."
     resp = requests.get(f"{AWNING_URL}/awning/undeploy", timeout=30)
     resp.raise_for_status()
     awning_client.current_state = "undeployed"
+    awning_client._deploy_start_at = None
+    awning_client._deploy_duration_s = None
     return "Retracted awning."
 
 
@@ -83,6 +97,14 @@ def log_awning_action(action: str, reason: str) -> str:
 
 
 def get_awning_status() -> str:
+    remaining = awning_client.remaining_deploy_s()
+    if remaining is not None and remaining == 0:
+        awning_client.current_state = "undeployed"
+        awning_client._deploy_start_at = None
+        awning_client._deploy_duration_s = None
+        return "retracted"
+    if awning_client.current_state == "deployed" and remaining is not None:
+        return f"deployed ({remaining}s remaining)"
     return awning_client.current_state or "retracted"
 
 
