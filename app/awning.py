@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import os
-import time
 from typing import Literal, Optional
 
 import httpx
@@ -14,10 +13,17 @@ AwningState = Literal["deployed", "undeployed", "unknown"]
 
 
 class AwningClient:
+    """
+    The awning motor has no position feedback: /awning/deploy/timed?seconds=N runs
+    the motor for N seconds of travel then stops, leaving the awning extended by
+    that amount indefinitely (it never auto-retracts and extension never decays
+    with wall-clock time). `_deployed_seconds` tracks that cumulative extension so
+    repeated deploy calls for the same target don't keep re-running the motor.
+    """
+
     def __init__(self) -> None:
         self.current_state: AwningState = "unknown"
-        self._deploy_start_at: Optional[float] = None
-        self._deploy_duration_s: Optional[int] = None
+        self._deployed_seconds: float = 0.0
 
     async def _call(self, path: str) -> bool:
         url = f"{AWNING_URL}{path}"
@@ -34,14 +40,14 @@ class AwningClient:
         ok = await self._call("/awning/deploy")
         if ok:
             self.current_state = "deployed"
+            self._deployed_seconds = float("inf")  # ran to full physical extension
         return ok
 
     async def undeploy(self) -> bool:
         ok = await self._call("/awning/undeploy")
         if ok:
             self.current_state = "undeployed"
-            self._deploy_start_at = None
-            self._deploy_duration_s = None
+            self._deployed_seconds = 0.0
         return ok
 
     async def stop(self) -> bool:
@@ -53,36 +59,34 @@ class AwningClient:
             await asyncio.sleep(duration_s)
             await self.stop()
 
-    def record_timed_deploy(self, duration_s: int) -> None:
-        """Record the start of a fresh timed deployment."""
-        self._deploy_start_at = time.time()
-        self._deploy_duration_s = duration_s
-        self.current_state = "deployed"
-
-    def extend_timed_deploy(self, new_total_s: int) -> None:
-        """Update the planned total duration without resetting the start time."""
-        self._deploy_duration_s = new_total_s
-        self.current_state = "deployed"
-
-    def remaining_deploy_s(self) -> Optional[int]:
-        """Seconds remaining in the current timed deployment, or None if not tracking."""
-        if self._deploy_start_at is None or self._deploy_duration_s is None:
+    def deploy_delta_seconds(self, target_seconds: float) -> Optional[float]:
+        """
+        Seconds of additional motor travel needed to reach `target_seconds` of
+        extension, or None if the awning is already extended that far. Extension
+        does not decay over time, so this only depends on the last recorded
+        position, never on how long ago it was set.
+        """
+        if self._deployed_seconds >= target_seconds:
             return None
-        elapsed = time.time() - self._deploy_start_at
-        return max(0, int(self._deploy_duration_s - elapsed))
+        return target_seconds - self._deployed_seconds
 
-    def effective_timed_deploy_s(self, requested_s: int) -> Optional[int]:
-        """
-        Seconds to pass to the timed-deploy endpoint given a total requested duration.
-        Accounts for already-elapsed deployment time so the awning is deployed for
-        exactly `requested_s` seconds from the original deploy start, not from now.
-        Returns None when the current deployment already covers the requested duration.
-        """
-        if self.current_state != "deployed" or self._deploy_start_at is None:
-            return requested_s
-        elapsed = int(time.time() - self._deploy_start_at)
-        effective = requested_s - elapsed
-        return effective if effective > 0 else None
+    def record_deploy_extension(self, target_seconds: float) -> None:
+        """Record that the awning is now extended to `target_seconds`."""
+        self._deployed_seconds = target_seconds
+        self.current_state = "deployed"
+
+    def record_partial_retract(self, seconds: float) -> None:
+        """Record that the awning retracted by `seconds` of motor travel."""
+        self._deployed_seconds = max(0.0, self._deployed_seconds - seconds)
+        self.current_state = "deployed" if self._deployed_seconds > 0 else "undeployed"
+
+    def record_full_retract(self) -> None:
+        self._deployed_seconds = 0.0
+        self.current_state = "undeployed"
+
+    def deployed_seconds(self) -> float:
+        """Current extension amount, in seconds of motor travel."""
+        return self._deployed_seconds
 
 
 awning_client = AwningClient()
