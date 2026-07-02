@@ -16,7 +16,14 @@ while ! curl -sf http://localhost:8767/health >/dev/null 2>&1; do sleep 1; done
 # integration, which otherwise pops a "create/unlock keyring" prompt on
 # first launch — a blank modal surface that grabs all touch input and
 # never resolves on a kiosk with no keyboard.
+#
+# --remote-debugging-port lets scripts/cicd_update.py force this tab to
+# hard-reload after a deploy — the kiosk tab never re-navigates on its own,
+# so a static-file-only change (CSS/JS) would otherwise sit stale until the
+# next reboot even though `systemctl restart` picked it up. Bound to
+# 127.0.0.1 since the debug port grants full page control.
 chromium --kiosk --noerrdialogs --disable-infobars --no-first-run \
   --enable-features=OverlayScrollbar --start-maximized \
   --ozone-platform=wayland --password-store=basic \
+  --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1 \
   http://localhost:8767/kiosk &

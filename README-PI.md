@@ -148,6 +148,18 @@ The first line fires every minute but gates on `CICD_INTERVAL_MINUTES` (default:
 
 Note: CI/CD only restarts `awning-protector` (`CICD_SERVICE_NAME`). If a deploy changes `watchdog.py`, restart that service manually: `sudo systemctl restart awning-watchdog`.
 
+**Kiosk reload** — `systemctl restart` only reloads the Python backend; the kiosk's Chromium tab
+(step 9.5) stays open across deploys and never re-navigates on its own, so a deploy that only
+touches `kiosk.css`/`kiosk.js` would otherwise look stale until the next reboot. To have CI/CD
+force that tab to hard-reload after each deploy, set in `.env`:
+```
+CICD_KIOSK_URL=http://localhost:8767/kiosk
+```
+This requires the `--remote-debugging-port` flag in `deploy/kiosk-autostart` (step 9.5) to already
+be running — reboot once after adding that flag before this takes effect. If the debug port isn't
+reachable (kiosk not booted yet, or this var unset), the reload step just logs a warning; it never
+fails the deploy.
+
 **Pause / resume without editing cron:**
 
 ```bash
@@ -229,7 +241,7 @@ Append the contents of `deploy/kiosk-autostart` from the repo (don't overwrite t
 cat /home/mcdomx/awning_protector/deploy/kiosk-autostart >> ~/.config/labwc/autostart
 ```
 
-It waits for `awning-protector`'s `/health` endpoint before launching Chromium in `--kiosk` mode pointed at `http://localhost:8767/kiosk`, so it doesn't race the systemd service on boot.
+It waits for `awning-protector`'s `/health` endpoint before launching Chromium in `--kiosk` mode pointed at `http://localhost:8767/kiosk`, so it doesn't race the systemd service on boot. It also opens a CDP debug port (`--remote-debugging-port=9222`, bound to `127.0.0.1`) so CI/CD can force this tab to reload after a deploy — see [CI/CD § Kiosk reload](#7-set-up-cicd-auto-deploy-on-new-commits).
 
 Reboot to verify:
 

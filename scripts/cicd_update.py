@@ -2,13 +2,19 @@
 """CI/CD polling script — generic, config-driven via .env. See README-PI.md."""
 
 import argparse
+import base64
+import json
 import logging
 import os
 import shutil
+import socket
+import struct
 import sys
 import subprocess
 import time
 from pathlib import Path
+from urllib.parse import urlparse
+from urllib.request import urlopen
 
 # ── Constants ──────────────────────────────────────────────────────────────
 PROJECT_ROOT  = Path(__file__).resolve().parent.parent
@@ -132,6 +138,73 @@ def deploy_systemd() -> None:
     install_dependencies()
     _run(["sudo", SYSTEMCTL, "restart", service_name])
     logger.info("Service '%s' restarted.", service_name)
+    reload_kiosk_if_configured()
+
+
+# ── Kiosk reload (Chrome DevTools Protocol) ───────────────────────────────
+# systemctl restart reloads the Python backend, but a kiosk Chromium tab
+# that's already open never re-navigates on its own — static-file-only
+# changes (CSS/JS) would otherwise sit stale until the next reboot. If
+# CICD_KIOSK_URL is set, force that tab to hard-reload (bypassing its disk
+# cache) via the CDP debug port opened by deploy/kiosk-autostart.
+
+def reload_kiosk_if_configured() -> None:
+    kiosk_url = load_env_var("CICD_KIOSK_URL", None)
+    if not kiosk_url:
+        return
+    debug_port = load_env_var("CICD_KIOSK_DEBUG_PORT", "9222")
+    try:
+        with urlopen(f"http://127.0.0.1:{debug_port}/json/list", timeout=5) as resp:
+            tabs = json.loads(resp.read())
+        tab = next((t for t in tabs if t.get("url", "").startswith(kiosk_url)), None)
+        if tab is None:
+            raise RuntimeError(f"no Chromium tab found for {kiosk_url}")
+        _cdp_reload(tab["webSocketDebuggerUrl"])
+        logger.info("Kiosk tab reloaded (%s).", kiosk_url)
+    except Exception as exc:
+        logger.warning("Kiosk reload skipped: %s", exc)
+
+
+def _cdp_reload(ws_url: str) -> None:
+    """Minimal WebSocket client: send one Page.reload command over the CDP socket."""
+    parsed = urlparse(ws_url)
+    path = parsed.path + (f"?{parsed.query}" if parsed.query else "")
+    key = base64.b64encode(os.urandom(16)).decode()
+
+    with socket.create_connection((parsed.hostname, parsed.port), timeout=5) as sock:
+        handshake = (
+            f"GET {path} HTTP/1.1\r\n"
+            f"Host: {parsed.hostname}:{parsed.port}\r\n"
+            "Upgrade: websocket\r\nConnection: Upgrade\r\n"
+            f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n"
+        )
+        sock.sendall(handshake.encode())
+        response = sock.recv(4096)
+        if b"101" not in response.split(b"\r\n", 1)[0]:
+            raise RuntimeError(f"WebSocket handshake failed: {response[:80]!r}")
+
+        payload = json.dumps(
+            {"id": 1, "method": "Page.reload", "params": {"ignoreCache": True}}
+        ).encode()
+        sock.sendall(_ws_frame(payload))
+
+
+def _ws_frame(payload: bytes) -> bytes:
+    """Encode a single masked text frame (client->server frames must be masked per RFC 6455)."""
+    mask = os.urandom(4)
+    masked = bytes(b ^ mask[i % 4] for i, b in enumerate(payload))
+    header = bytearray([0x81])  # FIN + text frame opcode
+    length = len(payload)
+    if length < 126:
+        header.append(0x80 | length)
+    elif length < 65536:
+        header.append(0x80 | 126)
+        header += struct.pack(">H", length)
+    else:
+        header.append(0x80 | 127)
+        header += struct.pack(">Q", length)
+    header += mask
+    return bytes(header) + masked
 
 
 def deploy_docker() -> None:

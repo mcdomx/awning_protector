@@ -184,6 +184,8 @@ CICD_DEPLOY_MODE=systemd             # Pi production only — systemd | docker
 CICD_GIT_BRANCH=main                 # Pi production only — branch to poll
 CICD_INTERVAL_MINUTES=15             # Pi production only — polling interval for CI/CD script
 CICD_SERVICE_NAME=awning-protector   # Pi production only — service restarted on deploy
+CICD_KIOSK_URL=http://localhost:8767/kiosk   # Pi production only — hard-reloads this kiosk tab (CDP) after each deploy; unset skips it
+CICD_KIOSK_DEBUG_PORT=9222                   # Pi production only — must match --remote-debugging-port in deploy/kiosk-autostart
 ```
 
 > On macOS, `host.docker.internal` resolves automatically.
@@ -223,6 +225,15 @@ rm .cicd_disabled      # resume
 **Key behaviour:**
 - Cron fires every minute; the script gates on `CICD_INTERVAL_MINUTES` via `logs/.last_run` — most fires are silent no-ops
 - `@reboot` bypasses the interval gate so commits that landed while the Pi was off deploy immediately on next boot
-- On new commits: `git pull` → `pipenv install` → `systemctl restart awning-protector`
+- On new commits: `git pull` → `pipenv install` → `systemctl restart awning-protector` → kiosk reload (if `CICD_KIOSK_URL` set)
 - Only restarts `awning-protector`; if a deploy changes `watchdog.py`, restart `awning-watchdog` manually
 - Full setup steps: see [README-PI.md](README-PI.md)
+
+**Kiosk reload** — `systemctl restart` reloads the Python backend, but the kiosk's Chromium tab
+(launched once at boot, see [Kiosk Boot Mode](README-PI.md#9-kiosk-boot-mode)) never re-navigates
+on its own; a deploy that only changes static files (`kiosk.css`/`kiosk.js`) would otherwise sit
+stale until the next reboot even though the backend already restarted with the new commit. When
+`CICD_KIOSK_URL` is set, `reload_kiosk_if_configured()` (`scripts/cicd_update.py`) hard-reloads
+that tab over the Chrome DevTools Protocol debug port opened by `deploy/kiosk-autostart`
+(`--remote-debugging-port`, bound to `127.0.0.1`). Failure to reach the debug port (e.g. kiosk not
+running) only logs a warning — it never fails the deploy.
