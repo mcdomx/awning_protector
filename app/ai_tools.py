@@ -24,24 +24,20 @@ def _normalize_action(action: str) -> str:
 
 
 def deploy_awning(seconds: int = 3) -> str:
-    effective = awning_client.effective_timed_deploy_s(seconds)
-    if effective is None:
-        remaining = awning_client.remaining_deploy_s() or 0
-        return f"Awning already deployed with {remaining}s remaining; no extension needed."
+    delta = awning_client.deploy_delta_seconds(seconds)
+    if delta is None:
+        extension = awning_client.deployed_seconds()
+        current = "fully extended" if extension == float("inf") else f"{extension}s extension"
+        return f"Awning already deployed ({current}); no further extension needed."
 
     resp = requests.get(
         f"{AWNING_URL}/awning/deploy/timed",
-        params={"seconds": effective},
+        params={"seconds": delta},
         timeout=30,
     )
     resp.raise_for_status()
-
-    if effective < seconds:
-        awning_client.extend_timed_deploy(seconds)
-        elapsed = seconds - effective
-        return f"Deployed awning for {effective}s (extending total to {seconds}s; {elapsed}s already elapsed)."
-    awning_client.record_timed_deploy(seconds)
-    return f"Deployed awning for {seconds}s."
+    awning_client.record_deploy_extension(seconds)
+    return f"Extended awning by {delta}s (now at {seconds}s total extension)."
 
 
 def retract_awning(seconds: int = None) -> str:
@@ -52,15 +48,11 @@ def retract_awning(seconds: int = None) -> str:
             timeout=30,
         )
         resp.raise_for_status()
-        awning_client.current_state = "undeployed"
-        awning_client._deploy_start_at = None
-        awning_client._deploy_duration_s = None
+        awning_client.record_partial_retract(seconds)
         return f"Retracted awning by {seconds} seconds."
     resp = requests.get(f"{AWNING_URL}/awning/undeploy", timeout=30)
     resp.raise_for_status()
-    awning_client.current_state = "undeployed"
-    awning_client._deploy_start_at = None
-    awning_client._deploy_duration_s = None
+    awning_client.record_full_retract()
     return "Retracted awning."
 
 
@@ -97,14 +89,11 @@ def log_awning_action(action: str, reason: str) -> str:
 
 
 def get_awning_status() -> str:
-    remaining = awning_client.remaining_deploy_s()
-    if remaining is not None and remaining == 0:
-        awning_client.current_state = "undeployed"
-        awning_client._deploy_start_at = None
-        awning_client._deploy_duration_s = None
-        return "retracted"
-    if awning_client.current_state == "deployed" and remaining is not None:
-        return f"deployed ({remaining}s remaining)"
+    if awning_client.current_state == "deployed":
+        extension = awning_client.deployed_seconds()
+        if extension == float("inf"):
+            return "deployed (fully extended)"
+        return f"deployed ({extension}s extension)"
     return awning_client.current_state or "retracted"
 
 
