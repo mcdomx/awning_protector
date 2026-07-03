@@ -2,7 +2,8 @@
 
 ## Purpose
 Local web dashboard and automation engine for managing an outdoor awning based on live weather data.
-Consumes the `tempest_weather` service (port 8766) and `tahoma_awning` service (port 8765).
+Consumes the `tempest_weather` service (port 8766), `tahoma_awning` service (port 8765), and the
+`uv_sensor` service (port 8768, a living-room glare sensor) for AI evaluations.
 
 ## Stack
 - Python 3.9, FastAPI, uvicorn, httpx, pydantic
@@ -15,6 +16,7 @@ Consumes the `tempest_weather` service (port 8766) and `tahoma_awning` service (
 app/
   api.py         # FastAPI app, all routes, SSE fan-out
   weather.py     # WeatherClient — SSE subscriber + OpenWeatherMap forecast + staleness tracking
+  uv_sensor.py   # UVSensorClient — SSE subscriber for the living-room glare sensor + staleness tracking
   awning.py      # AwningClient — HTTP calls to tahoma_awning service
   automation.py  # AutomationEngine — background rule evaluator (10s loop)
   ai_agent.py    # AIEngine — event-driven scheduling loop; _Claude wrapper; prompt load/save
@@ -27,6 +29,7 @@ prompts/
   rain_worker.md.j2       # Rain risk assessment worker (Jinja2)
   forecast_worker.md.j2   # Forecast risk assessment worker (Jinja2)
   solar_worker.md.j2      # Solar/deploy-benefit assessment worker (Jinja2)
+  glare_worker.md.j2      # Living-room glare assessment worker (Jinja2)
   coordinator.md.j2       # Synthesizes worker assessments into a brief (Jinja2)
   orchestrator.md.j2      # Final deploy/retract decision + next-eval timing (Jinja2)
 static/
@@ -90,20 +93,22 @@ With AI mode disabled, the engine only ever retracts (rules 1–3); it never dep
 decision-making as a worker → coordinator → orchestrator pipeline (ported from
 `notebooks/multi_agent_sandbox.ipynb`):
 
-1. **Workers** (`run_wind_worker`, `run_rain_worker`, `run_forecast_worker`, `run_solar_worker`) —
-   four small, tool-free Claude calls that each return a compact JSON risk assessment
-   (`{"risk": ..., "reasoning": ...}`) from pre-formatted weather text.
-2. **Fast path** — if the wind or rain worker reports `risk` of `moderate`/`high`, the forecast
-   and solar workers and the coordinator call are skipped entirely; a `MUST_RETRACT` brief is
+1. **Workers** (`run_wind_worker`, `run_rain_worker`, `run_forecast_worker`, `run_solar_worker`,
+   `run_glare_worker`) — small, tool-free Claude calls that each return a compact JSON assessment
+   from pre-formatted data. Wind/rain/forecast return `{"risk": ..., "reasoning": ...}`; solar and
+   glare are deploy-benefit workers with a stubbed `"risk"` field (not a hazard signal).
+2. **Fast path** — if the wind or rain worker reports `risk` of `moderate`/`high`, the forecast,
+   solar, and glare workers and the coordinator call are skipped entirely; a `MUST_RETRACT` brief is
    synthesized directly in code and handed to the orchestrator. This trims token usage when an
    immediate retract is obviously correct.
-3. **Coordinator** (`run_coordinator`) — one Claude call that synthesizes the four worker
+3. **Coordinator** (`run_coordinator`) — one Claude call that synthesizes the five worker
    assessments (skipped on the fast path) into a concise plain-text brief.
 4. **Orchestrator** (`run_orchestrator`) — the only pipeline stage with tool access
    (`action_tool_schemas` / `execute_action_tool`: deploy/retract/log/status). It reads the brief,
    takes action, and emits a final `ORCHESTRATOR REPORT` that also states
    `Next Eval In: <seconds>` — folding next-eval timing into this single call rather than running
-   a separate timing agent.
+   a separate timing agent. When conditions are exceptionally safe (see below), a sixth
+   `deploy_for_glare` tool is added to this run's tool list.
 
 `AIEngine` scheduling behavior:
 - On startup (when `ai_enabled = true`), runs immediately.
@@ -112,6 +117,30 @@ decision-making as a worker → coordinator → orchestrator pipeline (ported fr
 - `POST /ai/evaluate` calls `trigger_immediate()` which sets the event to wake the sleep early. `trigger_immediate()` is a no-op when `ai_enabled = false`.
 - `PUT /config` calls `notify_config_changed()` which wakes the loop immediately so it re-checks `ai_enabled` — disabling AI takes effect within seconds rather than waiting for the current sleep interval to expire.
 - If an evaluation is in-flight when AI is disabled, the result is discarded and no next evaluation is scheduled.
+- `AIEngine.run()` gathers `_eval_loop()` (the scheduling loop above) with `_glare_guard()`, a
+  real-time task that reacts to `uv_sensor_client`'s SSE stream and calls `trigger_immediate()` on
+  the rising edge of illuminance crossing `glare_lux_threshold` — so a glare event is evaluated
+  promptly instead of waiting out the scheduled sleep (mirrors `AutomationEngine._wind_guard()`).
+
+### Glare worker and extended deployment (living-room UV/illuminance sensor)
+- `app/uv_sensor.py` (`UVSensorClient`) subscribes to the `uv_sensor` service's SSE stream
+  (`UV_SENSOR_URL`, default `http://uvsensor.local:8768`) the same way `WeatherClient` does for
+  weather; a stale/unreachable reading (> 30s, `GLARE_STALE_SECONDS`) causes the glare worker to be
+  skipped for that evaluation — the rest of the pipeline is unaffected.
+- The glare worker only reports whether illuminance is above `AIConfig.glare_lux_threshold`
+  (default 2000 lux) — it does not decide whether extended deployment is safe.
+- `deploy_for_glare` (`app/ai_tools.py`) — a tool that incrementally extends the awning, polling
+  `/uv/latest` after each step, stopping once the reading drops below the threshold or
+  `AIConfig.max_extended_deployment_seconds` (default 15s) is reached; that cap is enforced
+  server-side regardless of what value the LLM passes.
+- This tool is only added to the orchestrator's tool list for a given run (`app/ai_pipeline.py`,
+  `glare_eligible`) when: not on the fast path, the glare sensor isn't stale, `glare_detected` is
+  true, wind risk == `none`, rain risk == `none`, **and** the presence gate passes — the LLM cannot
+  invoke it otherwise. Presence gate: `home == true`, or (`home == false` and `risk_tolerance == 5`),
+  from the structured `home`/`risk_tolerance` fields on `UserGuidance` (`app/config.py`,
+  `get_active_presence()`) — set from the same kiosk guidance screen as the existing free-text
+  guidance (`static/kiosk.js`). Defaults are the conservative end (`home=False`,
+  `risk_tolerance=1`) so the gate stays closed until guidance is explicitly set.
 - `_next_eval_at` is cleared when AI is disabled; re-enabling triggers an immediate evaluation.
 - All six prompt templates live in `prompts/` and can be overridden at runtime via `PUT /ai/prompts/{name}` (rendered with `_build_system_blocks`, a generic Jinja2 + prompt-cache system-block builder shared by every stage).
 - Requires `ANTHROPIC_API_KEY` in `.env`; model defaults to `claude-haiku-4-5` (override with `CLAUDE_MODEL`).
@@ -176,6 +205,7 @@ pipenv run pytest tests/
 ```
 WEATHER_URL=http://host.docker.internal:8766
 AWNING_URL=http://host.docker.internal:8765
+UV_SENSOR_URL=http://uvsensor.local:8768   # living-room glare sensor for AI evaluations
 APP_PORT=8767
 APP_URL=http://localhost:8767        # watchdog uses this; overridden in docker-compose
 ANTHROPIC_API_KEY=                   # required for AI deploy mode

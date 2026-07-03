@@ -5,9 +5,11 @@ from unittest.mock import patch
 import pytest
 
 from app.ai_pipeline import (
+    GLARE_STALE_SECONDS,
     MAX_TOOL_ITERATIONS,
     _RISKY,
     _gather_pipeline_context,
+    _glare_stale,
     _parse_json,
     _parse_next_eval,
     _run_worker,
@@ -109,6 +111,24 @@ def test_fast_path_triggers_on_moderate_or_high_risk():
     for risk in ("low", "none"):
         assert risk not in _RISKY
     assert {}.get("risk") not in _RISKY  # missing key -> None, should not trigger fast-path
+
+
+def test_glare_stale_true_when_never_read():
+    with patch("app.ai_pipeline.uv_sensor_client") as uv:
+        uv.seconds_since_last_reading = None
+        assert _glare_stale() is True
+
+
+def test_glare_stale_false_within_window():
+    with patch("app.ai_pipeline.uv_sensor_client") as uv:
+        uv.seconds_since_last_reading = GLARE_STALE_SECONDS - 1
+        assert _glare_stale() is False
+
+
+def test_glare_stale_true_past_window():
+    with patch("app.ai_pipeline.uv_sensor_client") as uv:
+        uv.seconds_since_last_reading = GLARE_STALE_SECONDS + 1
+        assert _glare_stale() is True
 
 
 def test_skipped_worker_marks_assessment():
@@ -245,6 +265,14 @@ class _Resp:
             raise requests.HTTPError("500 Server Error")
 
 
+class _FakeJsonResp:
+    def __init__(self, data):
+        self._data = data
+
+    def json(self):
+        return self._data
+
+
 def test_deploy_awning_raises_on_non_ok_response():
     from app import ai_tools
     import requests
@@ -252,6 +280,48 @@ def test_deploy_awning_raises_on_non_ok_response():
     with patch("app.ai_tools.requests.get", return_value=_Resp(ok=False)):
         with pytest.raises(requests.HTTPError):
             ai_tools.deploy_awning(3)
+
+
+def test_deploy_for_glare_clamps_to_config_cap():
+    from app import ai_tools
+    from app.awning import awning_client
+    from app.config import AutomationConfig
+
+    awning_client.record_full_retract()
+    cfg = AutomationConfig()
+    cfg.ai.max_extended_deployment_seconds = 6
+    cfg.ai.glare_lux_threshold = 2000.0
+
+    with patch("app.ai_tools.get_config", return_value=cfg), \
+         patch("app.ai_tools.requests.get") as mock_get:
+        mock_get.side_effect = [
+            _Resp(ok=True), _FakeJsonResp({"illuminance_lux": 5000}),
+            _Resp(ok=True), _FakeJsonResp({"illuminance_lux": 5000}),
+            _Resp(ok=True), _FakeJsonResp({"illuminance_lux": 5000}),
+        ]
+        result = ai_tools.deploy_for_glare(max_seconds=100)  # requests far more than the cap
+
+    assert "6.0s" in result
+    assert awning_client.deployed_seconds() == 6
+
+
+def test_deploy_for_glare_stops_when_lux_drops_below_threshold():
+    from app import ai_tools
+    from app.awning import awning_client
+    from app.config import AutomationConfig
+
+    awning_client.record_full_retract()
+    cfg = AutomationConfig()
+    cfg.ai.max_extended_deployment_seconds = 15
+    cfg.ai.glare_lux_threshold = 2000.0
+
+    with patch("app.ai_tools.get_config", return_value=cfg), \
+         patch("app.ai_tools.requests.get") as mock_get:
+        mock_get.side_effect = [_Resp(ok=True), _FakeJsonResp({"illuminance_lux": 500})]
+        result = ai_tools.deploy_for_glare()
+
+    assert "glare cleared" in result
+    assert awning_client.deployed_seconds() == 2
 
 
 def test_retract_awning_raises_on_non_ok_response():

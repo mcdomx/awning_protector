@@ -21,6 +21,7 @@ from .config import (
     UserGuidance, load_guidance, save_guidance, clear_guidance, get_active_guidance_text,
 )
 from .log_store import AutomationLogEntry, WeatherLogEntry, log_store
+from .uv_sensor import uv_sensor_client
 from .weather import weather_client
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,7 @@ STATIC_DIR = Path(__file__).parent.parent / "static"
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await weather_client.start()
+    await uv_sensor_client.start()
     asyncio.create_task(automation_engine.run())
     asyncio.create_task(ai_engine.run())
     yield
@@ -187,18 +189,22 @@ async def ai_set_enabled(body: AIEnabledRequest) -> Dict[str, Any]:
 async def ai_guidance_get() -> Dict[str, Any]:
     raw = load_guidance()
     if raw is None:
-        return {"active": False, "text": None, "expires_at": None}
+        return {"active": False, "text": None, "expires_at": None, "home": False, "risk_tolerance": 1}
     is_active = get_active_guidance_text() is not None
     return {
         "active": is_active,
         "text": raw.text,
         "expires_at": raw.expires_at.isoformat() if raw.expires_at else None,
+        "home": raw.home,
+        "risk_tolerance": raw.risk_tolerance,
     }
 
 
 class GuidanceRequest(BaseModel):
     text: str
     expires_at: Optional[str] = None
+    home: bool = False
+    risk_tolerance: int = 1
 
 
 @app.put("/ai/guidance")
@@ -208,12 +214,17 @@ async def ai_guidance_put(body: GuidanceRequest) -> Dict[str, Any]:
         expires = datetime.fromisoformat(body.expires_at.replace("Z", "+00:00"))
         if expires.tzinfo is None:
             expires = expires.replace(tzinfo=timezone.utc)
-    g = UserGuidance(text=body.text.strip(), expires_at=expires)
+    g = UserGuidance(
+        text=body.text.strip(), expires_at=expires,
+        home=body.home, risk_tolerance=body.risk_tolerance,
+    )
     save_guidance(g)
     return {
         "active": True,
         "text": g.text,
         "expires_at": g.expires_at.isoformat() if g.expires_at else None,
+        "home": g.home,
+        "risk_tolerance": g.risk_tolerance,
     }
 
 

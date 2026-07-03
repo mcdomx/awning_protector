@@ -2,7 +2,7 @@ import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 from pydantic import BaseModel, Field
 
@@ -22,6 +22,8 @@ class AIConfig(BaseModel):
     min_deployment_temp_f: float = 65.0
     min_eval_interval_seconds: int = 300
     max_eval_interval_seconds: int = 4500
+    glare_lux_threshold: float = 2000.0
+    max_extended_deployment_seconds: int = 15
 
 
 class AutomationConfig(BaseModel):
@@ -68,6 +70,8 @@ GUIDANCE_PATH = DATA_DIR / "guidance.json"
 class UserGuidance(BaseModel):
     text: str
     expires_at: Optional[datetime] = None
+    home: bool = False
+    risk_tolerance: int = 1
 
 
 _guidance: Optional[UserGuidance] = None
@@ -109,3 +113,17 @@ def get_active_guidance_text() -> Optional[str]:
         if datetime.now(tz) > _guidance.expires_at:
             return None
     return _guidance.text
+
+
+def get_active_presence() -> Optional[Tuple[bool, int]]:
+    """Return (home, risk_tolerance) from active guidance, or None if no guidance is active."""
+    global _guidance
+    if _guidance is None:
+        load_guidance()
+    if _guidance is None:
+        return None
+    if _guidance.expires_at:
+        tz = _guidance.expires_at.tzinfo or timezone.utc
+        if datetime.now(tz) > _guidance.expires_at:
+            return None
+    return _guidance.home, _guidance.risk_tolerance
