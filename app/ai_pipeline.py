@@ -13,7 +13,7 @@ from .ai_tools import (
 )
 from .automation import MPH_PER_MS
 from .awning import awning_client
-from .config import get_active_guidance_text, get_active_presence
+from .config import get_active_guidance_text
 from .error_report import (
     DEPENDENCY_UNAVAILABLE,
     MAX_RETRIES_EXCEEDED,
@@ -418,15 +418,12 @@ def run_ai_pipeline(cfg) -> dict:
             ctx, claude, coordinator_blocks, task_id,
         )
 
-    presence = get_active_presence()
-    presence_ok = presence is not None and (presence[0] or presence[1] == 5)
     glare_eligible = (
         not fast_path
         and not ctx["glare_stale"]
         and glare_r.assessment.get("glare_detected") is True
         and wind_r.assessment.get("risk") == "none"
         and rain_r.assessment.get("risk") == "none"
-        and presence_ok
     )
     tools = action_tool_schemas + ([glare_deploy_tool_schema] if glare_eligible else [])
 

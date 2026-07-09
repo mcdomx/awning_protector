@@ -128,19 +128,27 @@ decision-making as a worker → coordinator → orchestrator pipeline (ported fr
   weather; a stale/unreachable reading (> 30s, `GLARE_STALE_SECONDS`) causes the glare worker to be
   skipped for that evaluation — the rest of the pipeline is unaffected.
 - The glare worker only reports whether illuminance is above `AIConfig.glare_lux_threshold`
-  (default 2000 lux) — it does not decide whether extended deployment is safe.
+  (default 2000 lux) — it does not decide whether extended deployment is safe, but it is treated
+  as ground truth for actual living-room sun exposure: the solar worker's illuminance instead
+  comes from the outdoor patio weather station, which can read artificially low when shaded by a
+  neighboring building in late afternoon. The coordinator/orchestrator prompts (`prompts/
+  coordinator.md.j2`, `prompts/orchestrator.md.j2`) treat `glare_detected: true` (with wind/rain
+  risk both `none`) as sufficient on its own to justify a normal deploy/keep-deployed decision,
+  independent of solar `deploy_benefit` — a shaded solar sensor can no longer veto deployment when
+  the living-room sensor shows real glare. The solar worker's own illuminance/UV thresholds
+  (`prompts/solar_worker.md.j2`) are boosters toward `moderate`/`high` benefit, not a hard gate —
+  temperature and time-of-day alone are enough for at least `low` benefit.
 - `deploy_for_glare` (`app/ai_tools.py`) — a tool that incrementally extends the awning, polling
   `/uv/latest` after each step, stopping once the reading drops below the threshold or
   `AIConfig.max_extended_deployment_seconds` (default 15s) is reached; that cap is enforced
   server-side regardless of what value the LLM passes.
 - This tool is only added to the orchestrator's tool list for a given run (`app/ai_pipeline.py`,
   `glare_eligible`) when: not on the fast path, the glare sensor isn't stale, `glare_detected` is
-  true, wind risk == `none`, rain risk == `none`, **and** the presence gate passes — the LLM cannot
-  invoke it otherwise. Presence gate: `home == true`, or (`home == false` and `risk_tolerance == 5`),
-  from the structured `home`/`risk_tolerance` fields on `UserGuidance` (`app/config.py`,
-  `get_active_presence()`) — set from the same kiosk guidance screen as the existing free-text
-  guidance (`static/kiosk.js`). Defaults are the conservative end (`home=False`,
-  `risk_tolerance=1`) so the gate stays closed until guidance is explicitly set.
+  true, wind risk == `none`, and rain risk == `none` — the LLM cannot invoke it otherwise. There is
+  no presence/home-guidance requirement. `UserGuidance.home`/`risk_tolerance`
+  (`app/config.py`, `get_active_presence()`) remain settable via `PUT /ai/guidance` and the kiosk
+  guidance screen (`static/kiosk.js`) for display/future use, but are no longer consumed by this
+  gate.
 - `_next_eval_at` is cleared when AI is disabled; re-enabling triggers an immediate evaluation.
 - All six prompt templates live in `prompts/` and can be overridden at runtime via `PUT /ai/prompts/{name}` (rendered with `_build_system_blocks`, a generic Jinja2 + prompt-cache system-block builder shared by every stage).
 - Requires `ANTHROPIC_API_KEY` in `.env`; model defaults to `claude-haiku-4-5` (override with `CLAUDE_MODEL`).
