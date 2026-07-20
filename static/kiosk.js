@@ -66,14 +66,19 @@ function updateCompass(dirDeg) {
 const PRECIP_LABELS = { 0: 'No rain', 1: 'Rain', 2: 'Hail' };
 function updatePrecipBadge(type, mm) {
   const raining = type !== 0 || mm > 0;
-  const text = raining ? (PRECIP_LABELS[type] || 'Precip') + ` (${mm.toFixed(1)} mm/min)` : 'No rain';
   const cls = 'badge ' + (raining ? 'badge-alert' : 'badge-ok');
-  ['precip-badge', 'awn-precip-badge'].forEach(id => {
-    const badge = el(id);
-    if (!badge) return;
-    badge.textContent = text;
+
+  const badge = el('precip-badge');
+  if (badge) {
+    badge.textContent = raining ? (PRECIP_LABELS[type] || 'Precip') + ` (${mm.toFixed(1)} mm/min)` : 'No rain';
     badge.className = cls;
-  });
+  }
+
+  const awnBadge = el('awn-precip-badge');
+  if (awnBadge) {
+    awnBadge.textContent = raining ? 'Yes' : 'No';
+    awnBadge.className = cls;
+  }
 }
 
 /* --- Hourly forecast (stacked rows) --- */
