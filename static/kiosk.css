@@ -206,21 +206,24 @@ body {
 
 /* Awning */
 .awn-weather-row {
-  display: flex;
-  justify-content: space-around;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  row-gap: 1.5rem;
+  column-gap: 0.5rem;
 }
 .awn-weather-stat {
   display: grid;
-  grid-template-rows: 5.5rem auto auto;
+  grid-template-rows: 3.6rem auto auto;
   justify-items: center;
   align-items: center;
   text-align: center;
-  row-gap: 0.5rem;
+  row-gap: 0.4rem;
 }
-.awn-weather-row .stat-value { font-size: 4.5rem; }
-.awn-weather-row .stat-unit { font-size: 1.2rem; }
-.awn-weather-row .stat-icon { width: 4.8rem; height: 4.8rem; }
-.awn-weather-row .badge { font-size: 1.6rem; padding: 0.6rem 1.5rem; }
+.awn-weather-row .stat-value { font-size: 2.9rem; }
+.awn-weather-row .stat-unit { font-size: 1rem; }
+.awn-weather-row .stat-icon { width: 3.2rem; height: 3.2rem; }
+.awn-weather-row .badge { font-size: 1.1rem; padding: 0.4rem 1rem; }
+.awn-weather-row .stat-label { font-size: 1.2rem; }
 
 .awning-status { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; }
 .awning-status .badge { font-size: 1.6rem; padding: 0.6rem 1.5rem; }
