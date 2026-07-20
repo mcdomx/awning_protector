@@ -60,6 +60,11 @@ async def weather_current() -> Dict[str, Any]:
     return weather_client.current_snapshot()
 
 
+@app.get("/uv/current")
+async def uv_current() -> Dict[str, Any]:
+    return uv_sensor_client.latest_reading
+
+
 @app.get("/weather/forecast/hourly")
 async def weather_forecast_hourly() -> Dict[str, Any]:
     try:

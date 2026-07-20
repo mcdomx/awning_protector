@@ -7,8 +7,10 @@ const state = {
   precipType: 0,
   rainMm: 0,
   airTempC: null,
+  humidityPct: 0,
   uvIndex: 0,
   lux: 0,
+  glareUvIndex: 0,
   forecast: [],
   forecastError: null,
   forecastUpdatedAt: null,
@@ -365,16 +367,30 @@ function handleObs(data) {
   state.precipType = data.precip_type || 0;
   state.rainMm = data.rain_prev_min_mm || 0;
   state.airTempC = data.air_temp_c ?? null;
+  state.humidityPct = data.relative_humidity_pct || 0;
   state.uvIndex = data.uv_index || 0;
   state.lux = data.illuminance_lux || 0;
 
   setNum('wind-avg', state.windAvgMph);
+  setNum('cond-wind-avg', state.windAvgMph);
   setNum('wind-gust', state.windGustMph);
   const isC = (currentConfig.temp_unit || 'F') === 'C';
   setNum('air-temp', toDisplayTemp(state.airTempC), isC ? 1 : 0);
+  setNum('humidity', state.humidityPct, 0);
   setNum('uv-index', state.uvIndex);
   setNum('lux', state.lux, 0);
   updatePrecipBadge(state.precipType, state.rainMm);
+}
+
+/* --- Living-room glare sensor (uv_sensor service) --- */
+async function loadUvSensor() {
+  try {
+    const resp = await fetch('/uv/current');
+    if (!resp.ok) return;
+    const data = await resp.json();
+    state.glareUvIndex = data.uv_index || 0;
+    setNum('glare-uv', state.glareUvIndex);
+  } catch (e) { /* leave last known value displayed */ }
 }
 
 function handleWind(data) {
@@ -416,6 +432,7 @@ function connectSSE() {
 
 /* --- Awning status polling (every 15s) --- */
 setInterval(refreshAwningStatus, 15000);
+setInterval(loadUvSensor, 15000);
 
 /* --- AI status --- */
 let _aiNextEvalAt = null;
@@ -646,6 +663,7 @@ setInterval(tickAICountdown, 1000);
   try { await loadHourlyForecast(); } catch (e) { console.error('loadHourlyForecast failed', e); }
   try { await loadDailyForecast(); } catch (e) { console.error('loadDailyForecast failed', e); }
   try { await refreshAwningStatus(); } catch (e) { console.error('refreshAwningStatus failed', e); }
+  try { await loadUvSensor(); } catch (e) { console.error('loadUvSensor failed', e); }
   try { await refreshAIStatus(); } catch (e) { console.error('refreshAIStatus failed', e); }
   try { await loadGuidance(); } catch (e) { console.error('loadGuidance failed', e); }
   connectSSE();
