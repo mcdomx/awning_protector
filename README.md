@@ -48,6 +48,7 @@ Requires two sibling services running on the same host:
 |----------|---------|-------------|
 | `WEATHER_URL` | `http://host.docker.internal:8766` | Tempest weather service URL |
 | `AWNING_URL` | `http://host.docker.internal:8765` | TaHoma awning service URL |
+| `UV_SENSOR_URL` | `http://uvsensor.local:8768` | Living-room UV/illuminance sensor service URL (glare worker) |
 | `APP_PORT` | `8767` | Host port for this service |
 | `APP_URL` | `http://localhost:8767` | Used by watchdog to reach this app |
 | `OPENWEATHER_API_KEY` | _(empty)_ | OpenWeatherMap API key for forecast |

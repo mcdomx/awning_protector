@@ -11,6 +11,7 @@ from anthropic import Anthropic
 from anthropic.types import Message
 
 from .config import get_config
+from .uv_sensor import uv_sensor_client
 from .weather import weather_client
 
 _LOCAL_TZ = ZoneInfo("America/New_York")
@@ -66,12 +67,13 @@ def _next_window_open_at(earliest_str: str, now: Optional[datetime] = None) -> d
 
 PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
 
-VALID_PROMPT_NAMES = {"wind", "rain", "forecast", "solar", "coordinator", "orchestrator"}
+VALID_PROMPT_NAMES = {"wind", "rain", "forecast", "solar", "glare", "coordinator", "orchestrator"}
 _PROMPT_FILE = {
     "wind": "wind_worker.md.j2",
     "rain": "rain_worker.md.j2",
     "forecast": "forecast_worker.md.j2",
     "solar": "solar_worker.md.j2",
+    "glare": "glare_worker.md.j2",
     "coordinator": "coordinator.md.j2",
     "orchestrator": "orchestrator.md.j2",
 }
@@ -198,9 +200,32 @@ class AIEngine:
         if self._wakeup is not None:
             self._wakeup.set()
 
+    async def _glare_guard(self) -> None:
+        was_active = False
+        while True:
+            try:
+                await uv_sensor_client.wait_for_reading()
+                cfg = get_config()
+                reading = uv_sensor_client.latest_reading
+                lux = reading.get("illuminance_lux", 0) if reading else 0
+                active = cfg.ai.ai_enabled and lux >= cfg.ai.glare_lux_threshold
+                if active and not was_active:
+                    logger.info(
+                        "Glare guard: %.0f lux >= %.0f threshold — triggering immediate AI evaluation",
+                        lux, cfg.ai.glare_lux_threshold,
+                    )
+                    self.trigger_immediate()
+                was_active = active
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.error("Glare guard error: %s", exc)
+
     async def run(self) -> None:
         self._wakeup = asyncio.Event()
+        await asyncio.gather(self._eval_loop(), self._glare_guard())
 
+    async def _eval_loop(self) -> None:
         while True:
             self._wakeup.clear()
 

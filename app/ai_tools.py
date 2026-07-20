@@ -6,12 +6,18 @@ from anthropic.types import ToolParam
 from dotenv import load_dotenv
 
 from .awning import awning_client
+from .config import get_config
 from .log_store import log_store
 
 load_dotenv()
 
 WEATHER_URL = os.getenv("WEATHER_URL", "http://localhost:8766").rstrip("/")
 AWNING_URL = os.getenv("AWNING_URL", "http://localhost:8765").rstrip("/")
+UV_SENSOR_URL = os.getenv("UV_SENSOR_URL", "http://uvsensor.local:8768").rstrip("/")
+
+# Seconds of additional motor travel per increment while extending for glare — small enough
+# to check the sensor frequently, matching the "stop as soon as the reading drops" requirement.
+GLARE_DEPLOY_STEP_SECONDS = 2
 
 
 def _normalize_action(action: str) -> str:
@@ -38,6 +44,43 @@ def deploy_awning(seconds: int = 3) -> str:
     resp.raise_for_status()
     awning_client.record_deploy_extension(seconds)
     return f"Extended awning by {delta}s (now at {seconds}s total extension)."
+
+
+def deploy_for_glare(max_seconds: int = None) -> str:
+    ai_cfg = get_config().ai
+    cap = ai_cfg.max_extended_deployment_seconds
+    target_cap = min(max_seconds, cap) if max_seconds else cap
+
+    current_target = awning_client.deployed_seconds()
+    if current_target == float("inf"):
+        return "Awning already fully extended; no further extension possible."
+
+    while current_target < target_cap:
+        current_target = min(current_target + GLARE_DEPLOY_STEP_SECONDS, target_cap)
+        delta = awning_client.deploy_delta_seconds(current_target)
+        if delta is None:
+            break
+        resp = requests.get(
+            f"{AWNING_URL}/awning/deploy/timed",
+            params={"seconds": delta},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        awning_client.record_deploy_extension(current_target)
+
+        try:
+            reading = requests.get(f"{UV_SENSOR_URL}/uv/latest", timeout=5).json()
+        except Exception:
+            return (
+                f"Extended awning to {current_target}s for glare; "
+                "uv sensor became unreachable mid-adjustment, stopped extending."
+            )
+
+        lux = reading.get("illuminance_lux")
+        if lux is not None and lux < ai_cfg.glare_lux_threshold:
+            return f"Extended awning to {current_target}s; glare cleared (illuminance {lux} lux)."
+
+    return f"Extended awning to {current_target}s (extended-deployment cap reached); glare may persist."
 
 
 def retract_awning(seconds: int = None) -> str:
@@ -207,11 +250,39 @@ tool_schemas = [
 _ACTION_TOOL_NAMES = {"deploy_awning", "retract_awning", "log_awning_action", "get_awning_status"}
 action_tool_schemas = [s for s in tool_schemas if s["name"] in _ACTION_TOOL_NAMES]
 
+# Not part of action_tool_schemas — only offered to the orchestrator for runs where
+# app/ai_pipeline.py has already verified wind/rain risk is none and the presence gate passes.
+glare_deploy_tool_schema = ToolParam({
+    "name": "deploy_for_glare",
+    "description": (
+        "Incrementally extends the awning further than a normal deployment to block direct "
+        "sunlight detected by the living-room glare sensor, checking the sensor after each "
+        "increment and stopping as soon as the reading drops below the glare threshold or the "
+        "extended-deployment cap is reached. Only ever offered when conditions are already "
+        "verified to be exceptionally safe — do not attempt to replicate this with repeated "
+        "deploy_awning calls."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "max_seconds": {
+                "type": "integer",
+                "description": (
+                    "Upper bound on total extension seconds; clamped server-side to the "
+                    "configured extended-deployment cap regardless of the value passed."
+                ),
+            }
+        },
+        "required": [],
+    },
+})
+
 _ACTION_DISPATCH = {
     "deploy_awning": deploy_awning,
     "retract_awning": retract_awning,
     "log_awning_action": log_awning_action,
     "get_awning_status": get_awning_status,
+    "deploy_for_glare": deploy_for_glare,
 }
 
 

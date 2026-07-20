@@ -603,7 +603,11 @@ async function saveGuidance() {
     if (status) { status.textContent = 'Select an option in both groups.'; setTimeout(() => { status.textContent = ''; }, 2500); }
     return;
   }
-  const body = { text: _buildGuidanceText(location, risk) };
+  const body = {
+    text: _buildGuidanceText(location, risk),
+    home: location === 'home',
+    risk_tolerance: parseInt(risk, 10),
+  };
   const hourVal = el('cfg-ai-guidance-expiry-hour').value;
   const minVal = el('cfg-ai-guidance-expiry-min').value;
   const ampmVal = el('cfg-ai-guidance-expiry-ampm').value;
