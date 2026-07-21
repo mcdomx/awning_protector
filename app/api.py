@@ -144,6 +144,10 @@ async def awning_status() -> Dict[str, Any]:
 async def awning_deploy() -> Dict[str, str]:
     automation_engine.set_manual_override()
     ok = await awning_client.deploy()
+    log_store.add_automation(
+        "manual_action", "manual deploy requested", triggered=True,
+        action_taken="deploy" if ok else None,
+    )
     if not ok:
         raise HTTPException(status_code=502, detail="Awning service error")
     return {"status": "ok"}
@@ -153,6 +157,10 @@ async def awning_deploy() -> Dict[str, str]:
 async def awning_undeploy() -> Dict[str, str]:
     automation_engine.set_manual_override()
     ok = await awning_client.undeploy()
+    log_store.add_automation(
+        "manual_action", "manual undeploy requested", triggered=True,
+        action_taken="undeploy" if ok else None,
+    )
     if not ok:
         raise HTTPException(status_code=502, detail="Awning service error")
     return {"status": "ok"}
@@ -162,6 +170,10 @@ async def awning_undeploy() -> Dict[str, str]:
 async def awning_stop() -> Dict[str, str]:
     automation_engine.set_manual_override()
     ok = await awning_client.stop()
+    log_store.add_automation(
+        "manual_action", "manual stop requested", triggered=True,
+        action_taken="stop" if ok else None,
+    )
     if not ok:
         raise HTTPException(status_code=502, detail="Awning service error")
     return {"status": "ok"}
