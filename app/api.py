@@ -127,6 +127,7 @@ async def weather_stream() -> StreamingResponse:
 @app.get("/awning/status")
 async def awning_status() -> Dict[str, Any]:
     override = automation_engine.override_until
+    deployed_seconds = awning_client.deployed_seconds()
     return {
         "state": awning_client.current_state,
         "automation_active": get_config().automation_enabled and (
@@ -134,6 +135,8 @@ async def awning_status() -> Dict[str, Any]:
         ),
         "override_until": override.isoformat() if override else None,
         "active_rule": automation_engine.active_rule,
+        "deployed_seconds": None if deployed_seconds == float("inf") else deployed_seconds,
+        "ai_enabled": get_config().ai.ai_enabled,
     }
 
 

@@ -228,8 +228,10 @@ async function loadDailyForecast() {
 /* --- Awning status --- */
 function updateAwningStatus(data) {
   const badge = el('awning-state-badge');
+  const secondsEl = el('awning-state-seconds');
   const ruleEl = el('active-rule');
   const notice = el('override-notice');
+  const aiBadge = el('ai-enabled-badge');
   if (!badge) return;
 
   const stateMap = {
@@ -240,6 +242,17 @@ function updateAwningStatus(data) {
   const [label, cls] = stateMap[data.state] || ['Unknown', 'badge-unknown'];
   badge.textContent = label;
   badge.className = 'badge ' + cls;
+  if (secondsEl) {
+    if (data.state === 'deployed') {
+      secondsEl.textContent = data.deployed_seconds == null ? '(full)' : `(${Math.round(data.deployed_seconds)}s)`;
+    } else {
+      secondsEl.textContent = '';
+    }
+  }
+  if (aiBadge) {
+    aiBadge.textContent = data.ai_enabled ? 'Enabled' : 'Disabled';
+    aiBadge.className = 'badge ' + (data.ai_enabled ? 'badge-ok' : 'badge-unknown');
+  }
   if (ruleEl) ruleEl.textContent = data.active_rule || '';
   if (notice) {
     const overrideUntil = data.override_until ? new Date(data.override_until) : null;
