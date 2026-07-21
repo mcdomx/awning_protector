@@ -31,6 +31,19 @@ WEATHER_URL = os.getenv("WEATHER_URL", "http://localhost:8766")
 STATIC_DIR = Path(__file__).parent.parent / "static"
 
 
+class NoCacheStaticFiles(StaticFiles):
+    """Force revalidation on every request instead of relying on browser
+    heuristic caching (Starlette sends ETag/Last-Modified but no
+    Cache-Control), which could otherwise let a long-lived kiosk tab keep
+    serving a stale kiosk.js/kiosk.css from disk cache indefinitely — even
+    across a reboot, since disk cache isn't cleared by one."""
+
+    def file_response(self, *args: Any, **kwargs: Any):
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await weather_client.start()
@@ -42,7 +55,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="Awning Protector", lifespan=lifespan)
 
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+app.mount("/static", NoCacheStaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 @app.get("/health")
