@@ -302,7 +302,11 @@ async function loadConfig() {
   const resp = await fetch('/config');
   if (!resp.ok) return;
   currentConfig = await resp.json();
-  const ai = currentConfig.ai || {};
+  applyConfig(currentConfig);
+}
+
+function applyConfig(cfg) {
+  const ai = cfg.ai || {};
   el('cfg-ai-enabled').checked = !!ai.ai_enabled;
 
   const stepperDefs = [
@@ -355,6 +359,7 @@ async function saveAISettings() {
   const status = el('save-status-ai');
   if (resp.ok) {
     currentConfig = await resp.json();
+    applyConfig(currentConfig);
     if (status) { status.textContent = 'Saved'; setTimeout(() => { status.textContent = ''; }, 2000); }
   } else {
     if (status) status.textContent = 'Error saving';
@@ -436,6 +441,11 @@ function connectSSE() {
     else if (type === 'forecast_updated') {
       loadHourlyForecast();
       loadDailyForecast();
+    } else if (type === 'config_updated') {
+      currentConfig = data;
+      applyConfig(currentConfig);
+    } else if (type === 'guidance_updated') {
+      updateGuidanceUI(data);
     }
   };
 }

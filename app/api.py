@@ -20,6 +20,7 @@ from .config import (
     AutomationConfig, get_config, save_config,
     UserGuidance, load_guidance, save_guidance, clear_guidance, get_active_guidance_text,
 )
+from .events import app_events
 from .log_store import AutomationLogEntry, WeatherLogEntry, log_store
 from .uv_sensor import uv_sensor_client
 from .weather import weather_client
@@ -188,6 +189,7 @@ async def config_get() -> AutomationConfig:
 async def config_put(cfg: AutomationConfig) -> AutomationConfig:
     save_config(cfg)
     ai_engine.notify_config_changed()
+    await app_events.publish({"type": "config_updated", "data": cfg.model_dump()})
     return cfg
 
 
@@ -215,6 +217,7 @@ async def ai_set_enabled(body: AIEnabledRequest) -> Dict[str, Any]:
     cfg.ai.ai_enabled = body.enabled
     save_config(cfg)
     ai_engine.notify_config_changed()
+    await app_events.publish({"type": "config_updated", "data": cfg.model_dump()})
     return {"enabled": cfg.ai.ai_enabled}
 
 
@@ -252,19 +255,23 @@ async def ai_guidance_put(body: GuidanceRequest) -> Dict[str, Any]:
         home=body.home, risk_tolerance=body.risk_tolerance,
     )
     save_guidance(g)
-    return {
+    result = {
         "active": True,
         "text": g.text,
         "expires_at": g.expires_at.isoformat() if g.expires_at else None,
         "home": g.home,
         "risk_tolerance": g.risk_tolerance,
     }
+    await app_events.publish({"type": "guidance_updated", "data": result})
+    return result
 
 
 @app.delete("/ai/guidance")
 async def ai_guidance_delete() -> Dict[str, Any]:
     clear_guidance()
-    return {"active": False, "text": None, "expires_at": None}
+    result = {"active": False, "text": None, "expires_at": None, "home": False, "risk_tolerance": 1}
+    await app_events.publish({"type": "guidance_updated", "data": result})
+    return result
 
 
 @app.get("/ai/prompts/{name}")

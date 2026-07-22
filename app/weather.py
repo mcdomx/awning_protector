@@ -3,9 +3,11 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
 import httpx
+
+from .events import app_events
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +21,6 @@ class WeatherClient:
         self.latest_wind: Dict[str, Any] = {}
         self.forecast: List[Dict[str, Any]] = []
         self.forecast_error: Optional[str] = None
-        self._subscribers: Set[asyncio.Queue] = set()
-        self._lock = asyncio.Lock()
         self._last_forecast_fetch: Optional[datetime] = None
         self._last_obs_at: Optional[datetime] = None
         self._new_wind_event: asyncio.Event = asyncio.Event()
@@ -32,21 +32,10 @@ class WeatherClient:
         return (datetime.now(timezone.utc) - self._last_obs_at).total_seconds()
 
     def subscribe(self) -> asyncio.Queue:
-        q: asyncio.Queue = asyncio.Queue(maxsize=50)
-        self._subscribers.add(q)
-        return q
+        return app_events.subscribe()
 
     def unsubscribe(self, q: asyncio.Queue) -> None:
-        self._subscribers.discard(q)
-
-    async def _fan_out(self, message: Dict[str, Any]) -> None:
-        dead: Set[asyncio.Queue] = set()
-        for q in list(self._subscribers):
-            try:
-                q.put_nowait(message)
-            except asyncio.QueueFull:
-                dead.add(q)
-        self._subscribers -= dead
+        app_events.unsubscribe(q)
 
     async def _sse_loop(self) -> None:
         url = f"{WEATHER_URL}/weather/stream"
@@ -73,7 +62,7 @@ class WeatherClient:
                             elif msg_type == "rapid_wind":
                                 self.latest_wind = data
                                 self._new_wind_event.set()
-                            await self._fan_out(msg)
+                            await app_events.publish(msg)
             except Exception as exc:
                 logger.warning("SSE stream error, reconnecting in 5s: %s", exc)
                 await asyncio.sleep(5)
@@ -103,7 +92,7 @@ class WeatherClient:
             ]
             self.forecast_error = None
             self._last_forecast_fetch = datetime.now(timezone.utc)
-            await self._fan_out({"type": "forecast_updated", "data": {}})
+            await app_events.publish({"type": "forecast_updated", "data": {}})
         except Exception as exc:
             self.forecast_error = str(exc)
             logger.warning("Forecast fetch failed: %s", exc)

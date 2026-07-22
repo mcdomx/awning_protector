@@ -265,24 +265,28 @@ async function loadConfig() {
   const resp = await fetch('/config');
   if (!resp.ok) return;
   currentConfig = await resp.json();
+  applyConfig(currentConfig);
+}
+
+function applyConfig(cfg) {
   const cfgEnabled = el('cfg-enabled');
-  if (cfgEnabled) cfgEnabled.checked = currentConfig.automation_enabled;
+  if (cfgEnabled) cfgEnabled.checked = cfg.automation_enabled;
   const cfgOverride = el('cfg-override-min');
-  if (cfgOverride) cfgOverride.value = currentConfig.manual_override_min;
+  if (cfgOverride) cfgOverride.value = cfg.manual_override_min;
 
   const radioF = el('cfg-temp-unit-f');
   const radioC = el('cfg-temp-unit-c');
-  if (radioF) radioF.checked = (currentConfig.temp_unit || 'F') !== 'C';
-  if (radioC) radioC.checked = (currentConfig.temp_unit || 'F') === 'C';
+  if (radioF) radioF.checked = (cfg.temp_unit || 'F') !== 'C';
+  if (radioC) radioC.checked = (cfg.temp_unit || 'F') === 'C';
 
   const cfgRain = el('cfg-rain-enabled');
-  if (cfgRain) cfgRain.checked = currentConfig.rain_triggers_retract;
+  if (cfgRain) cfgRain.checked = cfg.rain_triggers_retract;
   const cfgWindEnabled = el('cfg-wind-enabled');
-  if (cfgWindEnabled) cfgWindEnabled.checked = currentConfig.wind_protection_enabled;
+  if (cfgWindEnabled) cfgWindEnabled.checked = cfg.wind_protection_enabled;
   const cfgMaxWind = el('cfg-max-wind');
-  if (cfgMaxWind) cfgMaxWind.value = currentConfig.max_wind_mph;
+  if (cfgMaxWind) cfgMaxWind.value = cfg.max_wind_mph;
 
-  const ai = currentConfig.ai || {};
+  const ai = cfg.ai || {};
   el('cfg-ai-enabled').checked = !!ai.ai_enabled;
   el('cfg-ai-wind').value = ai.current_wind_threshold_mph ?? 3.0;
   el('cfg-ai-forecast-wind').value = ai.forecasted_wind_threshold_mph ?? 8.0;
@@ -322,8 +326,7 @@ async function saveCard(cardName) {
   const status = el(`save-status-${cardName}`);
   if (resp.ok) {
     currentConfig = await resp.json();
-    updateCardDisabledState();
-    updateTempUnitUI();
+    applyConfig(currentConfig);
     if (status) { status.textContent = 'Saved'; setTimeout(() => { status.textContent = ''; }, 2000); }
   } else {
     if (status) status.textContent = 'Error saving';
@@ -426,6 +429,11 @@ function connectSSE() {
       loadInitialWeather();
       loadHourlyForecast();
       loadDailyForecast();
+    } else if (type === 'config_updated') {
+      currentConfig = data;
+      applyConfig(currentConfig);
+    } else if (type === 'guidance_updated') {
+      updateGuidanceUI(data);
     }
   };
 }
