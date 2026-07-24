@@ -81,9 +81,15 @@ scripts/
 1. Weather data stale > 120s → undeploy (resumes when data returns)
 2. Rain detected (`precip_type != 0` or `rain_prev_min_mm > 0`) → undeploy
 3. Wind avg > `max_wind_mph` → undeploy
-4. **AI mode** (`ai.ai_enabled = true`) → all deployment decisions delegated to `AIEngine`; rules 1–3 still run as safety checks
+4. **AI mode, outside deploy window** (`ai.ai_enabled = true` and current time is before
+   `earliest_auto_deployment` or at/after `latest_auto_deployment`) → undeploy. Enforced in code
+   (`AutomationEngine._evaluate()`, `app/automation.py`) on the 10s poll loop via
+   `_within_deploy_window()` — a hard guarantee independent of the AI eval loop's scheduling or
+   the LLM's judgment. The orchestrator prompt does not decide this.
+5. **AI mode, within deploy window** (`ai.ai_enabled = true`) → all deployment decisions delegated
+   to `AIEngine`; rules 1–3 still run as safety checks
 
-There is no rule-based deploy path — deploy decisions rely entirely on AI deploy mode (rule 4).
+There is no rule-based deploy path — deploy decisions rely entirely on AI deploy mode (rule 5).
 With AI mode disabled, the engine only ever retracts (rules 1–3); it never deploys on its own.
 
 ## AI Agent (`AIEngine` + multi-agent pipeline)

@@ -148,6 +148,7 @@ async def test_ai_mode_does_not_log_automation_entry(engine, cfg):
     with patch("app.automation.get_config", return_value=cfg), \
          patch("app.automation.weather_client") as wc, \
          patch("app.automation.awning_client", MagicMock()), \
+         patch("app.automation._within_deploy_window", return_value=True), \
          patch("app.automation.log_store") as mock_log:
         wc.latest_obs = obs
         wc.seconds_since_last_obs = 5
@@ -156,6 +157,52 @@ async def test_ai_mode_does_not_log_automation_entry(engine, cfg):
 
     mock_log.add_automation.assert_not_called()
     assert "AI mode" in engine.active_rule
+
+
+@pytest.mark.asyncio
+async def test_ai_deploy_window_closed_triggers_undeploy(engine, cfg):
+    cfg.ai.ai_enabled = True
+    obs = make_obs(illuminance_lux=15000, wind_avg_m_s=1.0)
+    awning = MagicMock()
+    awning.current_state = "deployed"
+    awning.undeploy = AsyncMock(return_value=True)
+
+    with patch("app.automation.get_config", return_value=cfg), \
+         patch("app.automation.weather_client") as wc, \
+         patch("app.automation.awning_client", awning), \
+         patch("app.automation._within_deploy_window", return_value=False), \
+         patch("app.automation.log_store") as mock_log:
+        wc.latest_obs = obs
+        wc.seconds_since_last_obs = 5
+        wc.forecast = []
+        await engine._evaluate()
+
+    awning.undeploy.assert_awaited_once()
+    assert "outside AI deploy window" in engine.active_rule
+    mock_log.add_automation.assert_called_once()
+    name, reason = mock_log.add_automation.call_args.args[:2]
+    assert name == "deploy_window_closed"
+    assert mock_log.add_automation.call_args.kwargs["action_taken"] == "undeploy"
+
+
+@pytest.mark.asyncio
+async def test_ai_deploy_window_closed_no_action_when_already_retracted(engine, cfg):
+    cfg.ai.ai_enabled = True
+    obs = make_obs(illuminance_lux=15000, wind_avg_m_s=1.0)
+    awning = MagicMock()
+    awning.current_state = "undeployed"
+    awning.undeploy = AsyncMock(return_value=True)
+
+    with patch("app.automation.get_config", return_value=cfg), \
+         patch("app.automation.weather_client") as wc, \
+         patch("app.automation.awning_client", awning), \
+         patch("app.automation._within_deploy_window", return_value=False):
+        wc.latest_obs = obs
+        wc.seconds_since_last_obs = 5
+        wc.forecast = []
+        await engine._evaluate()
+
+    awning.undeploy.assert_not_awaited()
 
 
 @pytest.mark.asyncio

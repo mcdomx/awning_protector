@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from .ai_agent import ai_engine
+from .ai_agent import _within_deploy_window, ai_engine
 from .awning import awning_client
 from .config import get_config
 from .log_store import log_store
@@ -116,6 +116,23 @@ class AutomationEngine:
                 triggered_action=action_taken,
                 trigger_field="wind_avg_mph",
                 trigger_reason=f"wind {wind_mph:.1f} mph > {cfg.max_wind_mph} mph max",
+            )
+            return
+
+        if cfg.ai.ai_enabled and not _within_deploy_window(
+            cfg.ai.earliest_auto_deployment, cfg.ai.latest_auto_deployment
+        ):
+            self._active_rule = (
+                f"outside AI deploy window ({cfg.ai.earliest_auto_deployment}"
+                f"–{cfg.ai.latest_auto_deployment}) → retracting"
+            )
+            action_taken = None
+            if awning_client.current_state != "undeployed":
+                logger.info("Outside AI deploy window, undeploying awning")
+                await awning_client.undeploy()
+                action_taken = "undeploy"
+            log_store.add_automation(
+                "deploy_window_closed", self._active_rule, triggered=True, action_taken=action_taken
             )
             return
 
