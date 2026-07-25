@@ -66,6 +66,7 @@ scripts/
 | POST | `/awning/deploy` | Manual deploy + set override |
 | POST | `/awning/undeploy` | Manual undeploy + set override |
 | POST | `/awning/stop` | Manual stop + set override |
+| POST | `/system/reboot` | Reboot the host (kiosk "Reboot" button, Open Dashboard screen) |
 | GET | `/config` | Current automation config |
 | PUT | `/config` | Update and persist config |
 | GET | `/logs/automation` | Automation log entries (JSON) |

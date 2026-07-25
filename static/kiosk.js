@@ -273,6 +273,21 @@ async function refreshAwningStatus() {
   if (resp.ok) updateAwningStatus(await resp.json());
 }
 
+async function rebootPi() {
+  if (!confirm('Reboot the Raspberry Pi?')) return;
+  const btn = el('reboot-btn');
+  const status = el('reboot-status');
+  if (btn) btn.disabled = true;
+  if (status) status.textContent = 'Rebooting…';
+  try {
+    const resp = await fetch('/system/reboot', { method: 'POST' });
+    if (!resp.ok) throw new Error('request failed');
+  } catch (err) {
+    if (status) status.textContent = 'Reboot failed';
+    if (btn) btn.disabled = false;
+  }
+}
+
 /* --- AI Settings stepper helpers --- */
 function _parseTimeStr(timeStr) {
   const m = /^(\d{1,2})(AM|PM)$/i.exec((timeStr || '').trim());

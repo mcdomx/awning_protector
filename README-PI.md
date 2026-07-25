@@ -119,16 +119,17 @@ journalctl -u awning-watchdog -f
 
 ## 7. Set Up CI/CD (Auto-Deploy on New Commits)
 
-The CI/CD script calls `systemctl restart awning-protector` non-interactively, so the `mcdomx` user needs passwordless sudo permission for that one command.
+The CI/CD script calls `systemctl restart awning-protector` non-interactively, so the `mcdomx` user needs passwordless sudo permission for that one command. The kiosk's Reboot button (`POST /system/reboot`) similarly needs passwordless permission for `systemctl reboot`.
 
 ```bash
 sudo visudo -f /etc/sudoers.d/awning-protector
 ```
 
-Add this line:
+Add these lines:
 
 ```
 mcdomx ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart awning-protector
+mcdomx ALL=(ALL) NOPASSWD: /usr/bin/systemctl reboot
 ```
 
 Then install the cron jobs:

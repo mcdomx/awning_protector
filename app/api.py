@@ -180,6 +180,19 @@ async def awning_stop() -> Dict[str, str]:
     return {"status": "ok"}
 
 
+@app.post("/system/reboot")
+async def system_reboot() -> Dict[str, str]:
+    log_store.add_automation(
+        "manual_action", "kiosk reboot requested", triggered=True,
+        action_taken="reboot",
+    )
+    try:
+        await asyncio.create_subprocess_exec("sudo", "/usr/bin/systemctl", "reboot")
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Reboot failed: {exc}")
+    return {"status": "ok"}
+
+
 @app.get("/config")
 async def config_get() -> AutomationConfig:
     return get_config()
