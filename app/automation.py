@@ -3,17 +3,20 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+import httpx
+
 from .ai_agent import _within_deploy_window, ai_engine
 from .awning import awning_client
 from .config import get_config
 from .log_store import log_store
-from .weather import weather_client
+from .weather import WEATHER_URL, weather_client
 
 logger = logging.getLogger(__name__)
 
 MPH_PER_MS = 2.23694
 EVAL_INTERVAL_S = 10
-WEATHER_TIMEOUT_S = 300  # retract after 5 minutes with no obs_st
+WEATHER_TIMEOUT_S = 300  # attempt tempest-weather restart after 5 minutes with no obs_st
+WEATHER_RESTART_GRACE_S = 180  # wait 3 minutes for data to resume before retracting
 
 
 class AutomationEngine:
@@ -22,6 +25,7 @@ class AutomationEngine:
         self._last_action: Optional[str] = None
         self._active_rule: Optional[str] = None
         self._weather_timed_out: bool = False
+        self._weather_restart_attempted_at: Optional[datetime] = None
 
     def set_manual_override(self) -> None:
         cfg = get_config()
@@ -61,6 +65,32 @@ class AutomationEngine:
             return
 
         if staleness > WEATHER_TIMEOUT_S:
+            if self._weather_restart_attempted_at is None:
+                self._weather_restart_attempted_at = datetime.now(timezone.utc)
+                self._active_rule = (
+                    f"weather data timeout ({staleness:.0f}s) → restarting tempest-weather service"
+                )
+                logger.warning(
+                    "Weather data stale for %.0fs, restarting tempest-weather service", staleness
+                )
+                await self._restart_weather_service()
+                log_store.add_automation(
+                    "weather_timeout_restart", self._active_rule,
+                    triggered=True, action_taken="restart_weather_service",
+                )
+                return
+
+            grace_elapsed = (
+                datetime.now(timezone.utc) - self._weather_restart_attempted_at
+            ).total_seconds()
+            if grace_elapsed < WEATHER_RESTART_GRACE_S:
+                self._active_rule = (
+                    f"weather data timeout ({staleness:.0f}s) → waiting for recovery "
+                    f"({grace_elapsed:.0f}s/{WEATHER_RESTART_GRACE_S:.0f}s)"
+                )
+                log_store.add_automation("weather_timeout_waiting", self._active_rule, triggered=False)
+                return
+
             self._active_rule = f"weather data timeout ({staleness:.0f}s) → retracting"
             self._weather_timed_out = True
             action_taken = None
@@ -73,6 +103,7 @@ class AutomationEngine:
             )
             return
 
+        self._weather_restart_attempted_at = None
         if self._weather_timed_out:
             self._weather_timed_out = False
             if cfg.ai.ai_enabled:
@@ -144,6 +175,14 @@ class AutomationEngine:
         self._active_rule = "conditions nominal — no action"
         log_store.add_automation("conditions_nominal", self._active_rule, triggered=False)
         log_store.add_weather(obs, wind_mph)
+
+    async def _restart_weather_service(self) -> None:
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.post(f"{WEATHER_URL}/admin/restart")
+                resp.raise_for_status()
+        except Exception as exc:
+            logger.warning("Failed to restart tempest-weather service: %s", exc)
 
     async def _wind_guard(self) -> None:
         while True:
