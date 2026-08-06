@@ -204,6 +204,17 @@ body {
 .badge-offline { background: rgba(100,116,139,0.15); color: var(--muted); border: 1px solid var(--border); }
 .badge-unknown { background: rgba(100,116,139,0.15); color: var(--muted); border: 1px solid var(--border); }
 
+/* Alert banner */
+.alert-banner {
+  background: var(--red);
+  color: #fff;
+  font-weight: 600;
+  font-size: 1rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 8px;
+  margin: 0.6rem 0;
+}
+
 /* Awning */
 .awn-weather-row {
   display: grid;

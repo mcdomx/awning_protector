@@ -227,10 +227,18 @@ async function loadDailyForecast() {
 }
 
 /* --- Awning status --- */
+function formatDuration(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
 function updateAwningStatus(data) {
   const badge = el('awning-state-badge');
   const ruleEl = el('active-rule');
   const notice = el('override-notice');
+  const staleBanner = el('weather-stale-banner');
   if (!badge) return;
 
   const stateMap = {
@@ -247,6 +255,15 @@ function updateAwningStatus(data) {
     notice.textContent = (overrideUntil && overrideUntil > new Date())
       ? `Manual override until ${overrideUntil.toLocaleTimeString()}`
       : '';
+  }
+  if (staleBanner) {
+    if (data.weather_stale && data.weather_stale_seconds != null) {
+      staleBanner.textContent =
+        `⚠ Weather data stale for ${formatDuration(data.weather_stale_seconds)} — awning retracted as a precaution. Check tempest_weather.`;
+      staleBanner.style.display = '';
+    } else {
+      staleBanner.style.display = 'none';
+    }
   }
 }
 

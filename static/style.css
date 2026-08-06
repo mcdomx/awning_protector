@@ -186,6 +186,17 @@ label { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; cu
 .badge-offline { background: rgba(100,116,139,0.15); color: var(--muted); border: 1px solid var(--border); }
 .badge-unknown { background: rgba(100,116,139,0.15); color: var(--muted); border: 1px solid var(--border); }
 
+/* Alert banner */
+.alert-banner {
+  background: var(--red);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 7px;
+  margin: 0.5rem 0;
+}
+
 /* Buttons */
 .btn {
   padding: 0.45rem 1rem;

@@ -285,6 +285,41 @@ async def test_weather_timeout_retracts_after_grace_period_elapses(engine, cfg):
 
 
 @pytest.mark.asyncio
+async def test_weather_timed_out_property_reflects_state(engine, cfg):
+    obs = make_obs()
+    awning = MagicMock()
+    awning.current_state = "deployed"
+    awning.undeploy = AsyncMock(return_value=True)
+    engine._weather_restart_attempted_at = datetime.now(timezone.utc) - timedelta(
+        seconds=WEATHER_RESTART_GRACE_S + 10
+    )
+
+    assert engine.weather_timed_out is False
+
+    with patch("app.automation.get_config", return_value=cfg), \
+         patch("app.automation.weather_client") as wc, \
+         patch("app.automation.awning_client", awning), \
+         patch.object(engine, "_restart_weather_service", AsyncMock()), \
+         patch("app.automation.log_store"):
+        wc.latest_obs = obs
+        wc.seconds_since_last_obs = 301
+        wc.forecast = []
+        await engine._evaluate()
+
+    assert engine.weather_timed_out is True
+
+    with patch("app.automation.get_config", return_value=cfg), \
+         patch("app.automation.weather_client") as wc, \
+         patch("app.automation.awning_client", MagicMock()):
+        wc.latest_obs = obs
+        wc.seconds_since_last_obs = 5
+        wc.forecast = []
+        await engine._evaluate()
+
+    assert engine.weather_timed_out is False
+
+
+@pytest.mark.asyncio
 async def test_weather_recovery_resets_restart_state(engine, cfg):
     obs = make_obs()
     engine._weather_timed_out = True

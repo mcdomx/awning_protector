@@ -226,12 +226,20 @@ async function loadDailyForecast() {
 }
 
 /* --- Awning status --- */
+function formatDuration(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
 function updateAwningStatus(data) {
   const badge = el('awning-state-badge');
   const secondsEl = el('awning-state-seconds');
   const ruleEl = el('active-rule');
   const notice = el('override-notice');
   const aiBadge = el('ai-enabled-badge');
+  const staleBanner = el('weather-stale-banner');
   if (!badge) return;
 
   const stateMap = {
@@ -259,6 +267,15 @@ function updateAwningStatus(data) {
     notice.textContent = (overrideUntil && overrideUntil > new Date())
       ? `Manual override until ${overrideUntil.toLocaleTimeString()}`
       : '';
+  }
+  if (staleBanner) {
+    if (data.weather_stale && data.weather_stale_seconds != null) {
+      staleBanner.textContent =
+        `⚠ Weather stale ${formatDuration(data.weather_stale_seconds)} — retracted as a precaution`;
+      staleBanner.style.display = '';
+    } else {
+      staleBanner.style.display = 'none';
+    }
   }
 }
 

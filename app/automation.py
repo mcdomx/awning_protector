@@ -40,6 +40,10 @@ class AutomationEngine:
     def active_rule(self) -> Optional[str]:
         return self._active_rule
 
+    @property
+    def weather_timed_out(self) -> bool:
+        return self._weather_timed_out
+
     def _is_overridden(self) -> bool:
         if self._override_until is None:
             return False

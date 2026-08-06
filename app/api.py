@@ -138,6 +138,10 @@ async def awning_status() -> Dict[str, Any]:
         "active_rule": automation_engine.active_rule,
         "deployed_seconds": None if deployed_seconds == float("inf") else deployed_seconds,
         "ai_enabled": get_config().ai.ai_enabled,
+        "weather_stale": automation_engine.weather_timed_out,
+        "weather_stale_seconds": (
+            weather_client.seconds_since_last_obs if automation_engine.weather_timed_out else None
+        ),
     }
 
 
